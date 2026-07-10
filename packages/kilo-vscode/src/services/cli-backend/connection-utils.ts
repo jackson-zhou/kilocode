@@ -35,6 +35,11 @@ function resolveSyncSessionId(
 }
 
 function resolveTransientSessionId(event: TransientPayload): string | undefined {
+  if (event.type === "session.diff") return event.properties.sessionID
+  return resolveRoutedSessionId(event)
+}
+
+function resolveRoutedSessionId(event: Exclude<TransientPayload, { type: "session.diff" }>): string | undefined {
   switch (event.type) {
     case "session.status":
     case "session.turn.open":

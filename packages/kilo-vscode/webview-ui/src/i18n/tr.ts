@@ -706,6 +706,10 @@ export const dict = {
     "1 dosya değiştirildi · +{{additions}} -{{deletions}}. Değişiklikler görünümünü aç.",
   "sidebar.session.showChanges.tooltip.other":
     "{{files}} dosya değiştirildi · +{{additions}} -{{deletions}}. Değişiklikler görünümünü aç.",
+  "sidebar.session.changedFiles.count.one": "1 dosya değiştirildi",
+  "sidebar.session.changedFiles.count.other": "{{files}} dosya değiştirildi",
+  "sidebar.session.changedFiles.expand": "Değiştirilen dosyaları genişlet",
+  "sidebar.session.changedFiles.collapse": "Değiştirilen dosyaları daralt",
   "sidebar.session.agentManager.tooltip":
     "Paralel oturumların ve worktree'lerin tam bir genel görünümü için Agent Manager'ı açın, böylece uzun süren görevleri tek bir yerden koordine edebilirsiniz.",
   "sidebar.session.openAgentManager": "Agent Manager'ı Aç",

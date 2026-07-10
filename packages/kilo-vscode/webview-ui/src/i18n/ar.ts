@@ -693,6 +693,10 @@ export const dict = {
   "sidebar.session.showChanges.tooltip.one": "تم تعديل ملف واحد · +{{additions}} -{{deletions}}. افتح عرض التغييرات.",
   "sidebar.session.showChanges.tooltip.other":
     "تم تعديل {{files}} ملفات · +{{additions}} -{{deletions}}. افتح عرض التغييرات.",
+  "sidebar.session.changedFiles.count.one": "تم تعديل ملف واحد",
+  "sidebar.session.changedFiles.count.other": "تم تعديل {{files}} ملفات",
+  "sidebar.session.changedFiles.expand": "توسيع الملفات المعدلة",
+  "sidebar.session.changedFiles.collapse": "طي الملفات المعدلة",
   "sidebar.session.agentManager.tooltip":
     "افتح Agent Manager للحصول على نظرة عامة كاملة على الجلسات المتوازية و worktrees، لتتمكن من تنسيق المهام الطويلة في مكان واحد.",
   "sidebar.session.openAgentManager": "فتح Agent Manager",

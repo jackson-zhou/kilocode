@@ -9,6 +9,7 @@ import { MessageV2 } from "./message-v2"
 import { SessionID, MessageID, PartID } from "./schema"
 import { SessionRunState } from "./run-state"
 import { SessionSummary } from "./summary"
+import * as KiloRevertDiff from "@/kilocode/session/revert-diff" // kilocode_change
 
 const log = Log.create({ service: "session.revert" })
 
@@ -72,34 +73,47 @@ export const layer = Layer.effect(
       rev.snapshot = session.revert?.snapshot ?? (yield* snap.track())
       if (session.revert?.snapshot) yield* snap.restore(session.revert.snapshot)
 
-      // kilocode_change start - compute diffs BEFORE reverting files so the diff
-      // reflects changes being undone (files on disk still have AI modifications)
-      const range = all.filter((msg) => msg.info.id >= rev.messageID)
-      const diffs = yield* summary.computeDiff({ messages: range })
+      // kilocode_change start
+      const diffs = yield* KiloRevertDiff.prepare({
+        sessionID: input.sessionID,
+        messages: all,
+        revert: rev,
+        storage,
+        summary,
+        snapshot: snap,
+        reverted: !!session.revert,
+      })
       // kilocode_change end
 
       yield* snap.revert(patches)
       if (rev.snapshot) rev.diff = yield* snap.diff(rev.snapshot)
-      yield* storage.write(["session_diff", input.sessionID], diffs).pipe(Effect.ignore)
+yield* storage.write(["session_diff", input.sessionID], diffs).pipe(Effect.ignore)
       yield* events.publish(Session.Event.Diff, { sessionID: input.sessionID, diff: diffs })
       // kilocode_change start
-      const summaryDiffs: Snapshot.SummaryFileDiff[] = diffs.map((d) => ({
+      const summaryDiffs: Snapshot.SummaryFileDiff[] = diffs.undone.map((d) => ({
         file: d.file,
         additions: d.additions,
         deletions: d.deletions,
         status: d.status,
       }))
+      yield* KiloRevertDiff.change(
+        input.sessionID,
+        Effect.gen(function* () {
+          yield* KiloRevertDiff.save(storage, input.sessionID, diffs.active)
+          yield* bus.publish(Session.Event.Diff, { sessionID: input.sessionID, diff: diffs.active })
+          yield* sessions.setRevert({
+            sessionID: input.sessionID,
+            revert: rev,
+            summary: {
+              additions: diffs.undone.reduce((sum, x) => sum + x.additions, 0),
+              deletions: diffs.undone.reduce((sum, x) => sum + x.deletions, 0),
+              files: diffs.undone.length,
+              diffs: summaryDiffs,
+            },
+          })
+        }),
+      )
       // kilocode_change end
-      yield* sessions.setRevert({
-        sessionID: input.sessionID,
-        revert: rev,
-        summary: {
-          additions: diffs.reduce((sum, x) => sum + x.additions, 0),
-          deletions: diffs.reduce((sum, x) => sum + x.deletions, 0),
-          files: diffs.length,
-          diffs: summaryDiffs, // kilocode_change
-        },
-      })
       return yield* sessions.get(input.sessionID).pipe(Effect.orDie)
     })
 
@@ -109,7 +123,20 @@ export const layer = Layer.effect(
       const session = yield* sessions.get(input.sessionID).pipe(Effect.orDie)
       if (!session.revert) return session
       if (session.revert.snapshot) yield* snap.restore(session.revert.snapshot)
-      yield* sessions.clearRevert(input.sessionID)
+      // kilocode_change start - restore the active cumulative diff and notify SSE consumers
+      const all = yield* sessions.messages({ sessionID: input.sessionID }).pipe(Effect.orDie)
+      const diffs = yield* KiloRevertDiff.restore({ sessionID: input.sessionID, messages: all, storage, summary })
+      yield* KiloRevertDiff.change(
+        input.sessionID,
+        Effect.gen(function* () {
+          yield* KiloRevertDiff.save(storage, input.sessionID, diffs)
+          yield* bus.publish(Session.Event.Diff, { sessionID: input.sessionID, diff: diffs })
+          yield* sessions.setSummary({ sessionID: input.sessionID, summary: KiloRevertDiff.totals(diffs) })
+          yield* sessions.clearRevert(input.sessionID)
+          yield* KiloRevertDiff.clear(storage, input.sessionID)
+        }),
+      )
+      // kilocode_change end
       return yield* sessions.get(input.sessionID).pipe(Effect.orDie)
     })
 
@@ -152,7 +179,17 @@ export const layer = Layer.effect(
           // kilocode_change end
         }
       }
-      yield* sessions.clearRevert(sessionID)
+      // kilocode_change start - keep summary totals aligned with the permanently retained session diff
+      const diffs = yield* sessions.diff(sessionID)
+      yield* KiloRevertDiff.change(
+        sessionID,
+        Effect.gen(function* () {
+          yield* sessions.setSummary({ sessionID, summary: KiloRevertDiff.totals(diffs) })
+          yield* sessions.clearRevert(sessionID)
+          yield* KiloRevertDiff.clear(storage, sessionID)
+        }),
+      )
+      // kilocode_change end
     })
 
     return Service.of({ revert, unrevert, cleanup })

@@ -685,6 +685,10 @@ export const dict = {
   "sidebar.session.showChanges.tooltip.empty": "打开更改视图以检查当前工作树。",
   "sidebar.session.showChanges.tooltip.one": "1 个文件已更改 · +{{additions}} -{{deletions}}。打开更改视图。",
   "sidebar.session.showChanges.tooltip.other": "{{files}} 个文件已更改 · +{{additions}} -{{deletions}}。打开更改视图。",
+  "sidebar.session.changedFiles.count.one": "1 个文件已更改",
+  "sidebar.session.changedFiles.count.other": "{{files}} 个文件已更改",
+  "sidebar.session.changedFiles.expand": "展开已更改的文件",
+  "sidebar.session.changedFiles.collapse": "收起已更改的文件",
   "sidebar.session.agentManager.tooltip":
     "打开 Agent Manager 以全面了解并行会话和 worktree，让您可以在一个地方协调长期运行的任务。",
   "sidebar.session.openAgentManager": "打开 Agent Manager",

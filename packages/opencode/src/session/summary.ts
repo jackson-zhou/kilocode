@@ -7,6 +7,7 @@ import { SessionID, MessageID } from "./schema"
 import { appendSessionDiffs, readSessionDiffBase } from "@/kilocode/session-portability/cumulative-diff" // kilocode_change
 import { Storage } from "@/storage/storage" // kilocode_change
 import { Config } from "@/config/config"
+import * as KiloRevertDiff from "@/kilocode/session/revert-diff" // kilocode_change
 
 function unquoteGitPath(input: string) {
   if (!input.startsWith('"')) return input
@@ -109,6 +110,7 @@ export const layer = Layer.effect(
       if (!all.length) return
       if ((yield* config.get()).snapshot === false) return // kilocode_change - respect snapshot config toggle
 
+<<<<<<< HEAD
       // kilocode_change start - preserve imported cumulative diffs when summarizing cloud-forked sessions
       const base = yield* readSessionDiffBase(storage, input.sessionID)
       const messages = all.filter(
@@ -136,11 +138,81 @@ export const layer = Layer.effect(
       })
       yield* storage.write(["session_diff", input.sessionID], diffs).pipe(Effect.ignore) // kilocode_change
       yield* events.publish(Session.Event.Diff, { sessionID: input.sessionID, diff: diffs })
+||||||| parent of 7d71f132d3 (feat: show session changed files)
+      // kilocode_change start - preserve imported cumulative diffs when summarizing cloud-forked sessions
+      const base = yield* readSessionDiffBase(storage, input.sessionID)
+      const messages = all.filter(
+        (m) => m.info.id === input.messageID || (m.info.role === "assistant" && m.info.parentID === input.messageID),
+      )
+      const target = messages.find((m) => m.info.id === input.messageID)
+      const local = base.length > 0 && target?.info.role === "user" ? yield* computeDiff({ messages }) : []
+      const diffs =
+        base.length > 0
+          ? yield* storage.read<Snapshot.FileDiff[]>(["session_diff", input.sessionID]).pipe(
+              Effect.orElseSucceed((): Snapshot.FileDiff[] => base),
+              Effect.map((existing) =>
+                appendSessionDiffs({ existing: existing.length > 0 ? existing : base, next: local }),
+              ),
+            )
+          : yield* computeDiff({ messages: all })
+      // kilocode_change end
+      yield* sessions.setSummary({
+        sessionID: input.sessionID,
+        summary: {
+          additions: diffs.reduce((sum, x) => sum + x.additions, 0),
+          deletions: diffs.reduce((sum, x) => sum + x.deletions, 0),
+          files: diffs.length,
+        },
+      })
+      yield* storage.write(["session_diff", input.sessionID], diffs).pipe(Effect.ignore)
+      yield* bus.publish(Session.Event.Diff, { sessionID: input.sessionID, diff: diffs })
+=======
+      // kilocode_change start - preserve cumulative diffs and discard summary commits invalidated by revert
+      yield* KiloRevertDiff.watch(input.sessionID, (token) =>
+        Effect.gen(function* () {
+          const base = yield* readSessionDiffBase(storage, input.sessionID)
+          const messages = all.filter(
+            (m) =>
+              m.info.id === input.messageID || (m.info.role === "assistant" && m.info.parentID === input.messageID),
+          )
+          const target = messages.find((m) => m.info.id === input.messageID)
+          const local = base.length > 0 && target?.info.role === "user" ? yield* computeDiff({ messages }) : []
+          const diffs =
+            base.length > 0
+              ? yield* storage.read<Snapshot.FileDiff[]>(["session_diff", input.sessionID]).pipe(
+                  Effect.orElseSucceed((): Snapshot.FileDiff[] => base),
+                  Effect.map((existing) =>
+                    appendSessionDiffs({ existing: existing.length > 0 ? existing : base, next: local }),
+                  ),
+                )
+              : yield* computeDiff({ messages: all })
+>>>>>>> 7d71f132d3 (feat: show session changed files)
 
-      if (!target || target.info.role !== "user") return
-      const msgDiffs = base.length > 0 ? local : yield* computeDiff({ messages }) // kilocode_change
-      target.info.summary = { ...target.info.summary, diffs: msgDiffs }
-      yield* sessions.updateMessage(target.info)
+          yield* KiloRevertDiff.guard({
+            token,
+            effect: Effect.gen(function* () {
+              const current = yield* sessions.get(input.sessionID).pipe(Effect.orDie)
+              if (current.revert) return
+              yield* sessions.setSummary({
+                sessionID: input.sessionID,
+                summary: {
+                  additions: diffs.reduce((sum, x) => sum + x.additions, 0),
+                  deletions: diffs.reduce((sum, x) => sum + x.deletions, 0),
+                  files: diffs.length,
+                },
+              })
+              yield* storage.write(["session_diff", input.sessionID], diffs).pipe(Effect.ignore)
+              yield* bus.publish(Session.Event.Diff, { sessionID: input.sessionID, diff: diffs })
+
+              if (!target || target.info.role !== "user") return
+              const msgDiffs = base.length > 0 ? local : yield* computeDiff({ messages })
+              target.info.summary = { ...target.info.summary, diffs: msgDiffs }
+              yield* sessions.updateMessage(target.info)
+            }),
+          })
+        }),
+      )
+      // kilocode_change end
     })
 
     const diff = Effect.fn("SessionSummary.diff")(function* (input: { sessionID: SessionID; messageID?: MessageID }) {

@@ -19,6 +19,7 @@ import { PromptInput } from "./PromptInput"
 import { PermissionDock } from "./PermissionDock"
 import { StartupErrorBanner } from "./StartupErrorBanner"
 import { SessionTabStrip } from "./SessionTabStrip"
+import { ChangedFilesOverview } from "./ChangedFilesOverview"
 import { useSession } from "../../context/session"
 import { useLocalTabs } from "../../context/local-tabs"
 import { useVSCode } from "../../context/vscode"
@@ -29,6 +30,7 @@ import { useAgentRequirements } from "../../context/agent-requirements"
 import { TranscriptSearchProvider } from "../../context/transcript-search"
 import { isPromptBlocked, isSuggesting, isQuestioning } from "./prompt-input-utils"
 import { showTabStrip } from "../../utils/local-tabs"
+import { requestChanges as requestSessionChanges } from "./changed-files-overview"
 
 interface ChatViewProps {
   onSelectSession?: (id: string) => void
@@ -156,6 +158,11 @@ export const ChatView: Component<ChatViewProps> = (props) => {
   const openAgentManager = () => vscode.postMessage({ type: "openAgentManager" })
 
   const openChanges = () => vscode.postMessage({ type: "openChanges" })
+  const openSessionChanges = () => {
+    const sessionID = id()
+    if (!sessionID) return
+    requestSessionChanges(vscode.postMessage, sessionID)
+  }
 
   const moveToWorktree = () => {
     if (transferring()) return
@@ -180,15 +187,16 @@ export const ChatView: Component<ChatViewProps> = (props) => {
   const changesTooltip = () => {
     const stats = session.worktreeStats()
     if (!stats?.files) return language.t("sidebar.session.showChanges.tooltip.empty")
-    return (
-      <span class="session-changes-tooltip">
-        <span>{stats.files === 1 ? "1 file changed" : `${stats.files} files changed`}</span>
-        <span class="session-changes-tooltip-separator">·</span>
-        <span class="session-diff-add">+{stats.additions}</span>
-        <span class="session-diff-del">-{stats.deletions}</span>
-        <span>Open the changes view.</span>
-      </span>
-    )
+    if (stats.files === 1)
+      return language.t("sidebar.session.showChanges.tooltip.one", {
+        additions: stats.additions,
+        deletions: stats.deletions,
+      })
+    return language.t("sidebar.session.showChanges.tooltip.other", {
+      files: stats.files,
+      additions: stats.additions,
+      deletions: stats.deletions,
+    })
   }
 
   const showAdvancedWorktree = () => vscode.postMessage({ type: "openAdvancedWorktree" })
@@ -386,10 +394,58 @@ export const ChatView: Component<ChatViewProps> = (props) => {
                 boxId={props.promptBoxId}
                 pendingSessionID={pendingSessionID()}
               />
+<<<<<<< HEAD
             </Show>
           </div>
         </Show>
       </div>
     </TranscriptSearchProvider>
+||||||| parent of 7d71f132d3 (feat: show session changed files)
+            )}
+          </Show>
+          <Show when={!props.readonly && idle() && !blocked() && hasActions(hasMessages())}>
+            {renderActions(hasMessages())}
+          </Show>
+          <Show when={!props.readonly}>
+            <PromptInput
+              blocked={blocked}
+              blockedReason={requirementReason}
+              suggesting={suggesting}
+              questioning={questioning}
+              boxId={props.promptBoxId}
+              pendingSessionID={props.pendingSessionID}
+            />
+          </Show>
+        </div>
+      </Show>
+    </div>
+=======
+            )}
+          </Show>
+          <Show when={!props.readonly && idle() && !blocked() && hasActions(hasMessages())}>
+            {renderActions(hasMessages())}
+          </Show>
+          <Show when={!props.readonly && isSidebar() && server.gitInstalled()}>
+            <ChangedFilesOverview
+              sessionID={id()}
+              files={session.sessionDiffFiles()}
+              onOpen={openSessionChanges}
+              onFileOpen={session.openSessionDiffFile}
+            />
+          </Show>
+          <Show when={!props.readonly}>
+            <PromptInput
+              blocked={blocked}
+              blockedReason={requirementReason}
+              suggesting={suggesting}
+              questioning={questioning}
+              boxId={props.promptBoxId}
+              pendingSessionID={props.pendingSessionID}
+            />
+          </Show>
+        </div>
+      </Show>
+    </div>
+>>>>>>> 7d71f132d3 (feat: show session changed files)
   )
 }

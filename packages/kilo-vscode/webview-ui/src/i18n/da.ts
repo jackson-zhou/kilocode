@@ -701,6 +701,10 @@ export const dict = {
   "sidebar.session.showChanges.tooltip.one": "1 fil ændret · +{{additions}} -{{deletions}}. Åbn ændringsvisningen.",
   "sidebar.session.showChanges.tooltip.other":
     "{{files}} filer ændret · +{{additions}} -{{deletions}}. Åbn ændringsvisningen.",
+  "sidebar.session.changedFiles.count.one": "1 fil ændret",
+  "sidebar.session.changedFiles.count.other": "{{files}} filer ændret",
+  "sidebar.session.changedFiles.expand": "Vis ændrede filer",
+  "sidebar.session.changedFiles.collapse": "Skjul ændrede filer",
   "sidebar.session.agentManager.tooltip":
     "Åbn Agent Manager for et komplet overblik over parallelle sessioner og worktrees, så du kan koordinere langvarige opgaver ét sted.",
   "sidebar.session.openAgentManager": "Åbn Agent Manager",

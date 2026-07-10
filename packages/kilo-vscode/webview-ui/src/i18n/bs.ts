@@ -707,6 +707,10 @@ export const dict = {
     "1 fajl izmijenjen · +{{additions}} -{{deletions}}. Otvori pregled izmjena.",
   "sidebar.session.showChanges.tooltip.other":
     "{{files}} fajlova izmijenjeno · +{{additions}} -{{deletions}}. Otvori pregled izmjena.",
+  "sidebar.session.changedFiles.count.one": "1 fajl izmijenjen",
+  "sidebar.session.changedFiles.count.other": "{{files}} fajlova izmijenjeno",
+  "sidebar.session.changedFiles.expand": "Proširi izmijenjene fajlove",
+  "sidebar.session.changedFiles.collapse": "Skupi izmijenjene fajlove",
   "sidebar.session.agentManager.tooltip":
     "Otvorite Agent Manager za potpuni pregled paralelnih sesija i worktree-a, kako biste mogli koordinirati dugotrajne zadatke na jednom mjestu.",
   "sidebar.session.openAgentManager": "Otvori Agent Manager",

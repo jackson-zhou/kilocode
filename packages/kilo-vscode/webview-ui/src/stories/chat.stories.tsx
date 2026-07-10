@@ -190,6 +190,11 @@ const meta: Meta = {
 export default meta
 type Story = StoryObj
 
+const expandChangedFiles = (ctx: { canvasElement: HTMLElement }) => {
+  const button = ctx.canvasElement.querySelector('[aria-label="Expand changed files"]') as HTMLButtonElement | null
+  button?.click()
+}
+
 // ---------------------------------------------------------------------------
 // ChatView stories
 // ---------------------------------------------------------------------------
@@ -290,6 +295,63 @@ export const ChatViewRequirementsReady: Story = {
       </ServerContext.Provider>
     </StoryProviders>
   ),
+}
+
+export const ChatViewChangedFilesIdle: Story = {
+  name: "ChatView — changed files while idle",
+  play: expandChangedFiles,
+  render: () => {
+    const session = {
+      ...mockSessionValue({ id: SESSION_ID, status: "idle" }),
+      messages: () => [{ id: "msg-001" }] as any[],
+      sessionDiffFiles: () => [
+        { file: "src/chat/ChangedFilesOverview.tsx", status: "modified", additions: 18, deletions: 4 },
+        { file: "src/chat/changed-files-overview.ts", status: "added", additions: 7, deletions: 0 },
+        { file: "tests/changed-files.test.ts", status: "modified", additions: 3, deletions: 2 },
+        { file: "docs/old-diff.md", status: "deleted", additions: 0, deletions: 3 },
+      ],
+    }
+    return (
+      <StoryProviders sessionID={SESSION_ID} status="idle" noPadding>
+        <ServerContext.Provider value={mockServer as any}>
+          <SessionContext.Provider value={session as any}>
+            <div style={{ width: "100%", height: "240px", display: "flex", "flex-direction": "column" }}>
+              <ChatView />
+            </div>
+          </SessionContext.Provider>
+        </ServerContext.Provider>
+      </StoryProviders>
+    )
+  },
+}
+
+export const ChatViewChangedFiles200: Story = {
+  name: "ChatView — changed files while busy (200px)",
+  play: expandChangedFiles,
+  render: () => {
+    const session = {
+      ...mockSessionValue({ id: SESSION_ID, status: "busy" }),
+      messages: () => [{ id: "msg-001" }] as any[],
+      sessionDiffFiles: () =>
+        Array.from({ length: 25 }, (_, index) => ({
+          file: `src/components/ChangedFile${index + 1}.tsx`,
+          status: "modified" as const,
+          additions: index + 1,
+          deletions: index % 3,
+        })),
+    }
+    return (
+      <StoryProviders sessionID={SESSION_ID} status="busy" noPadding>
+        <ServerContext.Provider value={mockServer as any}>
+          <SessionContext.Provider value={session as any}>
+            <div style={{ width: "200px", height: "240px", display: "flex", "flex-direction": "column" }}>
+              <ChatView />
+            </div>
+          </SessionContext.Provider>
+        </ServerContext.Provider>
+      </StoryProviders>
+    )
+  },
 }
 
 export const ChatViewAgentManagerCompleted: Story = {

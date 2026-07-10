@@ -871,12 +871,29 @@ export interface EnhancePromptRequest {
 // Open the standalone changes viewer tab from the sidebar
 export interface OpenChangesRequest {
   type: "openChanges"
+  /** Session rendered by the caller; avoids opening stale extension-side state after a rapid switch. */
+  sessionID?: string
   /**
    * When set, opens the viewer scoped to a single turn (identified by the
    * user message ID). The source picker is hidden and polling is disabled
    * for this mode.
    */
   turnId?: string
+  /** Selects the Agent session review instead of the workspace Git source. */
+  source?: "session" | "workspace"
+}
+
+export interface RequestSessionDiff {
+  type: "requestSessionDiff"
+  sessionID: string
+  requestID: string
+}
+
+export interface RequestSessionDiffFile {
+  type: "requestSessionDiffFile"
+  sessionID: string
+  file: string
+  requestID: string
 }
 
 // Open diff virtual (permission diff) in the lightweight diff virtual panel
@@ -1348,6 +1365,8 @@ export type WebviewMessage =
   | RevertWorktreeFileMessage
   | EnhancePromptRequest
   | OpenChangesRequest
+  | RequestSessionDiff
+  | RequestSessionDiffFile
   | OpenDiffVirtualRequest
   | DiffViewerSendCommentsRequest
   | DiffViewerSetDiffStyleRequest

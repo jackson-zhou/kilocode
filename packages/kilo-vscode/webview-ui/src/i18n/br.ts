@@ -704,6 +704,10 @@ export const dict = {
     "1 arquivo alterado · +{{additions}} -{{deletions}}. Abrir a visualização de alterações.",
   "sidebar.session.showChanges.tooltip.other":
     "{{files}} arquivos alterados · +{{additions}} -{{deletions}}. Abrir a visualização de alterações.",
+  "sidebar.session.changedFiles.count.one": "1 arquivo alterado",
+  "sidebar.session.changedFiles.count.other": "{{files}} arquivos alterados",
+  "sidebar.session.changedFiles.expand": "Expandir arquivos alterados",
+  "sidebar.session.changedFiles.collapse": "Recolher arquivos alterados",
   "sidebar.session.agentManager.tooltip":
     "Abra o Agent Manager para uma visão geral completa de sessões paralelas e worktrees, para que você possa coordenar tarefas longas em um só lugar.",
   "sidebar.session.openAgentManager": "Abrir Agent Manager",

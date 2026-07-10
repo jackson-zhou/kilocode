@@ -1266,6 +1266,10 @@ export const dict = {
   "sidebar.session.showChanges.tooltip.one": "1 file changed · +{{additions}} -{{deletions}}. Open the changes view.",
   "sidebar.session.showChanges.tooltip.other":
     "{{files}} files changed · +{{additions}} -{{deletions}}. Open the changes view.",
+  "sidebar.session.changedFiles.count.one": "1 file changed",
+  "sidebar.session.changedFiles.count.other": "{{files}} files changed",
+  "sidebar.session.changedFiles.expand": "Expand changed files",
+  "sidebar.session.changedFiles.collapse": "Collapse changed files",
   "sidebar.session.agentManager.tooltip":
     "Open Agent Manager for a full overview of parallel sessions and worktrees, so you can coordinate long-running tasks in one place.",
   "sidebar.session.openAgentManager": "Open Agent Manager",

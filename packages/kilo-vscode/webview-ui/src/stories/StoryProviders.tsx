@@ -244,6 +244,8 @@ export function mockSessionValue(overrides?: {
     revertedCount: () => 0,
     summary: () => undefined,
     worktreeStats: () => undefined,
+    sessionDiffFiles: () => [],
+    openSessionDiffFile: noop,
     revertSession: noop,
     unrevertSession: noop,
     favoriteModels: () => [],

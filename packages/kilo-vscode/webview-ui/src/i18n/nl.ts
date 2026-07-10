@@ -710,6 +710,10 @@ export const dict = {
     "1 bestand gewijzigd · +{{additions}} -{{deletions}}. Open de wijzigingenweergave.",
   "sidebar.session.showChanges.tooltip.other":
     "{{files}} bestanden gewijzigd · +{{additions}} -{{deletions}}. Open de wijzigingenweergave.",
+  "sidebar.session.changedFiles.count.one": "1 bestand gewijzigd",
+  "sidebar.session.changedFiles.count.other": "{{files}} bestanden gewijzigd",
+  "sidebar.session.changedFiles.expand": "Gewijzigde bestanden uitklappen",
+  "sidebar.session.changedFiles.collapse": "Gewijzigde bestanden inklappen",
   "sidebar.session.agentManager.tooltip":
     "Open Agent Manager voor een compleet overzicht van parallelle sessies en worktrees, zodat je langlopende taken op één plek kunt coördineren.",
   "sidebar.session.openAgentManager": "Open Agent Manager",

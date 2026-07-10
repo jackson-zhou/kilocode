@@ -8,6 +8,7 @@ import type {
   TextPartInput,
   FilePartInput,
   Config,
+  SnapshotFileDiff,
 } from "@kilocode/sdk/v2/client"
 import { MaxCostNudge, type MaxCostChoice } from "@opencode-ai/core/kilocode/cost/max-cost-nudge"
 import { type KiloConnectionService, ServerStartupError } from "./services/cli-backend"
@@ -172,6 +173,12 @@ import {
   validIndexingSetting,
   watchIndexingConfig,
 } from "./kilo-provider/indexing-settings"
+import { sessionSourceId } from "./diff/sources/session"
+import {
+  SessionDiffState,
+  detail as sessionDiffDetail,
+  summaries as sessionDiffSummaries,
+} from "./kilo-provider/session-diff"
 
 let maxCost = 0
 
@@ -410,6 +417,8 @@ export class KiloProvider implements vscode.WebviewViewProvider, TelemetryProper
   private statsGitOps: GitOps | null = null
   private cachedStats: unknown = null
   private cachedGitRepo = false
+  private sessionDiffRequest: { sessionID: string; requestID: string } | null = null
+  private readonly sessionDiffs = new SessionDiffState()
 
   private onBeforeMessage: ((msg: Record<string, unknown>) => Promise<Record<string, unknown> | null>) | null = null
 
@@ -468,6 +477,7 @@ export class KiloProvider implements vscode.WebviewViewProvider, TelemetryProper
   }
 
   private setCurrentSession(session: Session | null): void {
+    if (this.currentSession?.id !== session?.id) this.sessionDiffRequest = null
     const ids = new Set([this.currentSession?.id, session?.id])
     for (const id of ids) {
       if (id) this.refreshes.set(id, (this.refreshes.get(id) ?? 0) + 1)
@@ -879,6 +889,68 @@ export class KiloProvider implements vscode.WebviewViewProvider, TelemetryProper
     this.initializeConnection()
   }
 
+  private postSessionDiffs(sessionID: string, diffs: SnapshotFileDiff[], requestID?: string): void {
+    this.postMessage({
+      type: "sessionDiffFilesLoaded",
+      sessionID,
+      files: sessionDiffSummaries(diffs),
+      ...(requestID && { requestID }),
+    })
+  }
+
+  private async fetchSessionDiffs(sessionID: string): Promise<SnapshotFileDiff[] | undefined> {
+    const client = this.client
+    if (!client) return
+    return this.sessionDiffs.fetch(sessionID, async () => {
+      const result = await client.session
+        .diff({ sessionID, directory: this.getWorkspaceDirectory(sessionID) }, { throwOnError: true })
+        .catch((err) => {
+          console.error("[Kilo New] Failed to load session diff:", { sessionID, err })
+          return undefined
+        })
+      if (!result) return
+      return result.data ?? []
+    })
+  }
+
+  private async handleSessionDiffMessage(message: Record<string, unknown>): Promise<boolean> {
+    if (message.type === "requestSessionDiff") {
+      if (typeof message.sessionID !== "string" || typeof message.requestID !== "string") return true
+      const diffs = (await this.fetchSessionDiffs(message.sessionID)) ?? this.sessionDiffs.get(message.sessionID) ?? []
+      this.postSessionDiffs(message.sessionID, diffs, message.requestID)
+      return true
+    }
+    if (message.type !== "requestSessionDiffFile") return false
+    if (
+      typeof message.sessionID !== "string" ||
+      typeof message.file !== "string" ||
+      typeof message.requestID !== "string"
+    )
+      return true
+    if (this.currentSession?.id !== message.sessionID && this.contextSessionID !== message.sessionID) return true
+    const request = { sessionID: message.sessionID, requestID: message.requestID }
+    this.sessionDiffRequest = request
+    const diffs = this.sessionDiffs.get(request.sessionID) ?? (await this.fetchSessionDiffs(request.sessionID))
+    if (
+      !diffs ||
+      this.sessionDiffRequest !== request ||
+      (this.currentSession?.id !== request.sessionID && this.contextSessionID !== request.sessionID)
+    )
+      return true
+    const diff = sessionDiffDetail(diffs, message.file)
+    if (!diff) return true
+    if (diff.patch) {
+      this.diffVirtualProvider?.open(diff)
+      return true
+    }
+    void vscode.commands.executeCommand("kilo-code.new.showChanges", {
+      sessionId: request.sessionID,
+      directory: this.getWorkspaceDirectory(request.sessionID),
+      initialSourceId: sessionSourceId(request.sessionID),
+    })
+    return true
+  }
+
   private setupWebviewMessageHandler(webview: vscode.Webview): void {
     this.webviewMessageDisposable?.dispose()
     this.autocompleteConfigDisposable?.dispose()
@@ -925,8 +997,13 @@ export class KiloProvider implements vscode.WebviewViewProvider, TelemetryProper
           post: (msg) => this.postMessage(msg),
           openAgentManager: () => vscode.commands.executeCommand("kilo-code.new.agentManagerOpen"),
           openAdvancedWorktree: () => vscode.commands.executeCommand("kilo-code.new.agentManager.advancedWorktree"),
-          openChanges: (sessionId?: string, turnId?: string) =>
-            vscode.commands.executeCommand("kilo-code.new.showChanges", { sessionId, turnId }),
+          openChanges: (sessionId?: string, turnId?: string, source?: "session" | "workspace") =>
+            vscode.commands.executeCommand("kilo-code.new.showChanges", {
+              sessionId,
+              turnId,
+              directory: sessionId ? this.getWorkspaceDirectory(sessionId) : undefined,
+              initialSourceId: source === "session" && sessionId ? sessionSourceId(sessionId) : undefined,
+            }),
           currentSessionId: this.currentSession?.id,
           createWorktree: async (baseBranch, branchName) => {
             await this.createWorktreeHandler?.(baseBranch, branchName)
@@ -936,7 +1013,7 @@ export class KiloProvider implements vscode.WebviewViewProvider, TelemetryProper
       ) {
         return
       }
-      if (await this.handleModelSelectorExpandedMessage(message)) return
+      if (await this.handleProviderMessage(message)) return
       this.visibleTaskStreams.handle(message)
       if (await this.handleMemoryMessage(message)) return
       if (this.handleLegacyMigrationMessage(message)) return
@@ -1431,6 +1508,11 @@ export class KiloProvider implements vscode.WebviewViewProvider, TelemetryProper
       storage: this.extensionContext?.globalStorageUri,
       post: (msg) => this.postMessage(msg),
     })
+  }
+
+  private async handleProviderMessage(message: TypedWebviewMessage & Record<string, unknown>): Promise<boolean> {
+    if (await this.handleModelSelectorExpandedMessage(message)) return true
+    return this.handleSessionDiffMessage(message)
   }
 
   private async handleModelSelectorExpandedMessage(message: TypedWebviewMessage): Promise<boolean> {
@@ -2049,6 +2131,8 @@ export class KiloProvider implements vscode.WebviewViewProvider, TelemetryProper
     this.checkpoints.delete(sessionID)
     this.revisions.delete(sessionID)
     this.refreshes.delete(sessionID)
+    this.sessionDiffs.delete(sessionID)
+    if (this.sessionDiffRequest?.sessionID === sessionID) this.sessionDiffRequest = null
     this.sessionStatusMap.delete(sessionID)
     this.costs.onSessionDeleted(sessionID)
     const deletedAlertLimit = this.activeAlerts.get(sessionID)
@@ -3786,6 +3870,8 @@ export class KiloProvider implements vscode.WebviewViewProvider, TelemetryProper
       case "message.part.updated":
       case "message.part.removed":
         return event.properties.sessionID
+      case "session.diff":
+        return event.properties.sessionID
       default:
         return this.connectionService.resolveEventSessionId(event)
     }
@@ -3945,6 +4031,13 @@ export class KiloProvider implements vscode.WebviewViewProvider, TelemetryProper
     if (event.type === "session.updated" && typeof event.properties.info.cost === "number") {
       const cost = this.costs.setSessionCost(event.properties.sessionID, event.properties.info.cost)
       this.requestCostAlert(event.properties.sessionID, cost)
+    }
+
+    if (event.type === "session.diff") {
+      const sid = event.properties.sessionID
+      this.sessionDiffs.live(sid, event.properties.diff)
+      this.postSessionDiffs(sid, event.properties.diff)
+      return
     }
 
     if (event.type === "session.updated") {
@@ -4405,6 +4498,8 @@ export class KiloProvider implements vscode.WebviewViewProvider, TelemetryProper
     this.connectionService.registerOpen(this.instanceId, [])
     this.statsPoller?.stop()
     this.statsGitOps?.dispose()
+    this.sessionDiffRequest = null
+    this.sessionDiffs.clear()
     this.unsubscribeEvent?.()
     this.unsubscribeState?.()
     this.unsubscribeNotificationDismiss?.()

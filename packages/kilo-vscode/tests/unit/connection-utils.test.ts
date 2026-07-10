@@ -114,6 +114,16 @@ describe("resolveEventSessionId", () => {
     expect(resolveEventSessionId(event, noLookup)).toBe("s3")
   })
 
+  it("routes live session diff events", () => {
+    const event = {
+      id: "e-diff",
+      type: "session.diff",
+      properties: { sessionID: "s-diff", diff: [] },
+    } satisfies Payload
+
+    expect(resolveEventSessionId(event, noLookup)).toBe("s-diff")
+  })
+
   it("routes transient message deltas", () => {
     const event = {
       id: "e7",

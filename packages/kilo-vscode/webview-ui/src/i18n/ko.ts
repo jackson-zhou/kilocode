@@ -698,6 +698,10 @@ export const dict = {
   "sidebar.session.showChanges.tooltip.one": "파일 1개 변경됨 · +{{additions}} -{{deletions}}. 변경 사항 뷰 열기.",
   "sidebar.session.showChanges.tooltip.other":
     "파일 {{files}}개 변경됨 · +{{additions}} -{{deletions}}. 변경 사항 뷰 열기.",
+  "sidebar.session.changedFiles.count.one": "파일 1개 변경됨",
+  "sidebar.session.changedFiles.count.other": "파일 {{files}}개 변경됨",
+  "sidebar.session.changedFiles.expand": "변경된 파일 펼치기",
+  "sidebar.session.changedFiles.collapse": "변경된 파일 접기",
   "sidebar.session.agentManager.tooltip":
     "Agent Manager를 열어 병렬 세션 및 worktree의 전체 개요를 확인하고, 장기 실행 작업을 한 곳에서 조정할 수 있습니다.",
   "sidebar.session.openAgentManager": "Agent Manager 열기",

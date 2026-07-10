@@ -700,6 +700,10 @@ export const dict = {
     "1つのファイルが変更されました · +{{additions}} -{{deletions}}。変更ビューを開きます。",
   "sidebar.session.showChanges.tooltip.other":
     "{{files}}個のファイルが変更されました · +{{additions}} -{{deletions}}。変更ビューを開きます。",
+  "sidebar.session.changedFiles.count.one": "1つのファイルが変更されました",
+  "sidebar.session.changedFiles.count.other": "{{files}}個のファイルが変更されました",
+  "sidebar.session.changedFiles.expand": "変更されたファイルを展開",
+  "sidebar.session.changedFiles.collapse": "変更されたファイルを折りたたむ",
   "sidebar.session.agentManager.tooltip":
     "Agent Manager を開いて、並行セッションと worktree の全体像を把握し、時間のかかるタスクを 1 か所で調整できます。",
   "sidebar.session.openAgentManager": "Agent Manager を開く",

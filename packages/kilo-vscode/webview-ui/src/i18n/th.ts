@@ -699,6 +699,10 @@ export const dict = {
     "เปลี่ยนแปลง 1 ไฟล์ · +{{additions}} -{{deletions}} เปิดมุมมองการเปลี่ยนแปลง",
   "sidebar.session.showChanges.tooltip.other":
     "เปลี่ยนแปลง {{files}} ไฟล์ · +{{additions}} -{{deletions}} เปิดมุมมองการเปลี่ยนแปลง",
+  "sidebar.session.changedFiles.count.one": "เปลี่ยนแปลง 1 ไฟล์",
+  "sidebar.session.changedFiles.count.other": "เปลี่ยนแปลง {{files}} ไฟล์",
+  "sidebar.session.changedFiles.expand": "ขยายรายการไฟล์ที่เปลี่ยนแปลง",
+  "sidebar.session.changedFiles.collapse": "ยุบรายการไฟล์ที่เปลี่ยนแปลง",
   "sidebar.session.agentManager.tooltip":
     "เปิด Agent Manager เพื่อดูภาพรวมของเซสชันและ worktree คู่ขนาน เพื่อให้คุณสามารถประสานงานงานที่ใช้เวลานานได้ในที่เดียว",
   "sidebar.session.openAgentManager": "เปิด Agent Manager",

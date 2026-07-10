@@ -684,6 +684,10 @@ export const dict = {
   "sidebar.session.showChanges.tooltip.empty": "打開變更檢視以檢查當前工作樹。",
   "sidebar.session.showChanges.tooltip.one": "1 個檔案已變更 · +{{additions}} -{{deletions}}。開啟變更檢視。",
   "sidebar.session.showChanges.tooltip.other": "{{files}} 個檔案已變更 · +{{additions}} -{{deletions}}。開啟變更檢視。",
+  "sidebar.session.changedFiles.count.one": "1 個檔案已變更",
+  "sidebar.session.changedFiles.count.other": "{{files}} 個檔案已變更",
+  "sidebar.session.changedFiles.expand": "展開已變更的檔案",
+  "sidebar.session.changedFiles.collapse": "收合已變更的檔案",
   "sidebar.session.agentManager.tooltip":
     "打開 Agent Manager 以全面了解平行會話和 worktree，讓您可以在一個地方協調長期執行的任務。",
   "sidebar.session.openAgentManager": "打開 Agent Manager",
