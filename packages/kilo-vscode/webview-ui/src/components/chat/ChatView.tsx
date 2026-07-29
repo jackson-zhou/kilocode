@@ -19,6 +19,7 @@ import { PromptInput } from "./PromptInput"
 import { PermissionDock } from "./PermissionDock"
 import { StartupErrorBanner } from "./StartupErrorBanner"
 import { SessionTabStrip } from "./SessionTabStrip"
+import { ChangedFilesOverview } from "./ChangedFilesOverview"
 import { useSession } from "../../context/session"
 import { useLocalTabs } from "../../context/local-tabs"
 import { useVSCode } from "../../context/vscode"
@@ -156,6 +157,11 @@ export const ChatView: Component<ChatViewProps> = (props) => {
   const openAgentManager = () => vscode.postMessage({ type: "openAgentManager" })
 
   const openChanges = () => vscode.postMessage({ type: "openChanges" })
+  const openSessionChanges = () => {
+    const sessionID = id()
+    if (!sessionID) return
+    vscode.postMessage({ type: "openChanges", sessionID, source: "session" })
+  }
 
   const moveToWorktree = () => {
     if (transferring()) return
@@ -376,6 +382,9 @@ export const ChatView: Component<ChatViewProps> = (props) => {
             </Show>
             <Show when={!props.readonly && idle() && !blocked() && hasActions(hasMessages())}>
               {renderActions(hasMessages())}
+            </Show>
+            <Show when={!props.readonly && isSidebar()}>
+              <ChangedFilesOverview sessionID={id()} files={session.sessionDiffFiles()} onOpen={openSessionChanges} />
             </Show>
             <Show when={!props.readonly}>
               <PromptInput

@@ -896,6 +896,19 @@ export interface WorktreeStatsLoadedMessage {
   deletions: number
 }
 
+export interface SessionDiffFile {
+  file: string
+  additions: number
+  deletions: number
+}
+
+export interface SessionDiffFilesLoadedMessage {
+  type: "sessionDiffFilesLoaded"
+  sessionID: string
+  files: SessionDiffFile[]
+  requestID?: string
+}
+
 // Set the model for a session (extension → webview, used during multi-version creation)
 export interface AgentManagerSetSessionModelMessage {
   type: "agentManager.setSessionModel"
@@ -1281,6 +1294,7 @@ export type ExtensionMessage =
   | LanguageChangedMessage
   | ContinueInWorktreeProgressMessage
   | WorktreeStatsLoadedMessage
+  | SessionDiffFilesLoadedMessage
   | McpStatusLoadedMessage
   | ClearPendingPromptsMessage
   | ExtensionDataReadyMessage

@@ -451,7 +451,7 @@ export function activate(context: vscode.ExtensionContext) {
     }),
     vscode.commands.registerCommand(
       "kilo-code.new.showChanges",
-      (arg?: { sessionId?: string; turnId?: string; initialSourceId?: string }) => {
+      (arg?: { sessionId?: string; turnId?: string; initialSourceId?: string; directory?: string }) => {
         diffViewerProvider.openFromCommand(arg)
       },
     ),

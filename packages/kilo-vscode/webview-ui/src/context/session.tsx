@@ -48,6 +48,7 @@ import type {
   SendMessageFailedMessage,
   McpStatusEntry,
   MessageLoadMode,
+  SessionDiffFile,
   ToolPart,
 } from "../types/messages"
 import { removeSessionPermissions, upsertPermission } from "./permission-queue"
@@ -81,6 +82,7 @@ import { createAbortState } from "./abort-state"
 import { clearIfOn, createCloudPrune } from "./session-cloud-prune"
 import { isSameSessionTree } from "./model-usage"
 import { createDraftAgentSeed } from "./session-agent"
+import { request as requestSessionDiff } from "../components/chat/changed-files-overview"
 
 const RECENT_LIMIT = 5
 const MESSAGE_PAGE_LIMIT = 80
@@ -250,6 +252,7 @@ interface SessionContextValue {
 
   // Live worktree diff stats (polled from CLI backend)
   worktreeStats: Accessor<{ files: number; additions: number; deletions: number } | undefined>
+  sessionDiffFiles: Accessor<SessionDiffFile[]>
 
   // Actions
   revertSession: (messageID: string, partID?: string) => void
@@ -459,6 +462,17 @@ export const SessionProvider: ParentComponent = (props) => {
   const [worktreeStats, setWorktreeStats] = createSignal<
     { files: number; additions: number; deletions: number } | undefined
   >()
+  const [sessionDiffFiles, setSessionDiffFiles] = createSignal<SessionDiffFile[]>([])
+  let sessionDiffRequest: { sessionID: string; requestID: string } | undefined
+
+  createEffect(() => {
+    const sessionID = currentSessionID()
+    setSessionDiffFiles([])
+    if (!sessionID) return
+    const requestID = Identifier.ascending("message")
+    sessionDiffRequest = { sessionID, requestID }
+    requestSessionDiff(vscode.postMessage, sessionID, requestID)
+  })
 
   // Tracks optimistic messageIDs that haven't been confirmed by the server yet.
   // Prevents handleMessagesLoaded from wiping them when it replaces the array.
@@ -1070,12 +1084,22 @@ export const SessionProvider: ParentComponent = (props) => {
     if (message.type === "extensionDataReady") queueModelUsageRefresh()
   }
 
+  function handleSessionDiffMessage(message: ExtensionMessage): boolean {
+    if (message.type !== "sessionDiffFilesLoaded") return false
+    if (message.sessionID !== currentSessionID()) return true
+    if (message.requestID && message.requestID !== sessionDiffRequest?.requestID) return true
+    sessionDiffRequest = undefined
+    setSessionDiffFiles(message.files)
+    return true
+  }
+
   function handleExtensionMessage(message: ExtensionMessage): void {
     // Route suggestion messages (extracted to stay within complexity limit)
     routeSuggestionMessage(message)
     if (handleModelUsageMessage(message)) return
     refreshModelUsageForMessage(message)
     if (handleStreamMessage(message)) return
+    handleSessionDiffMessage(message)
     handleCommandCompletion(message)
     cah.handleMessage(message)
     switch (message.type) {
@@ -2997,6 +3021,7 @@ export const SessionProvider: ParentComponent = (props) => {
     revertedCount,
     summary,
     worktreeStats,
+    sessionDiffFiles,
     revertSession,
     unrevertSession,
     deleteQueuedMessage,

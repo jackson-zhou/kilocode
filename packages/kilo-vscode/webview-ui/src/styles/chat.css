@@ -28,3 +28,21 @@
 @import "./suggest-bar.css";
 @import "./settings.css";
 @import "./high-contrast.css";
+
+/* Changed Files Overview */
+[data-component="changed-files-overview"] {
+  display: flex;
+  flex-direction: column;
+  padding: 0 12px;
+
+  [data-slot="header"] { display: flex; width: 100%; }
+  [data-slot="summary"] { width: 100%; min-width: 0; justify-content: flex-start; font-variant-numeric: tabular-nums; }
+  [data-slot="label"] { min-width: 0; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  [data-slot="toggle"] { flex-shrink: 0; }
+  [data-slot="list"] { max-height: 160px; overflow-y: auto; padding-bottom: 4px; }
+  [data-slot="file"], [data-slot="more"] { width: 100%; min-width: 0; justify-content: flex-start; padding-left: 30px; text-align: left; }
+  [data-slot="path"] { min-width: 0; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  [data-slot="stats"] { display: flex; flex-shrink: 0; gap: 4px; font-variant-numeric: tabular-nums; }
+  [data-slot="additions"] { flex-shrink: 0; color: var(--text-diff-add-base); }
+  [data-slot="deletions"] { flex-shrink: 0; color: var(--text-diff-delete-base); }
+}

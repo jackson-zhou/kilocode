@@ -70,11 +70,11 @@ export class DiffViewerProvider implements vscode.Disposable {
    * the source picker hidden — the view becomes a static "diff of this turn"
    * rather than the switchable workspace/session viewer.
    */
-  openFromCommand(arg?: { sessionId?: string; turnId?: string; initialSourceId?: string }): void {
+  openFromCommand(arg?: { sessionId?: string; turnId?: string; initialSourceId?: string; directory?: string }): void {
     const sessionId = arg?.sessionId ?? this.sessionIdProvider()
     const turnInitialSourceId = arg?.turnId && sessionId ? turnSourceId(sessionId, arg.turnId) : undefined
     this.openPanel({
-      workspaceRoot: getWorkspaceRoot(),
+      workspaceRoot: arg?.directory ?? getWorkspaceRoot(),
       sessionId,
       initialSourceId: turnInitialSourceId ?? arg?.initialSourceId,
       hidePicker: !!turnInitialSourceId,

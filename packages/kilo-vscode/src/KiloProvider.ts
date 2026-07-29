@@ -8,6 +8,7 @@ import type {
   TextPartInput,
   FilePartInput,
   Config,
+  SnapshotFileDiff,
 } from "@kilocode/sdk/v2/client"
 import { MaxCostNudge, type MaxCostChoice } from "@opencode-ai/core/kilocode/cost/max-cost-nudge"
 import { type KiloConnectionService, ServerStartupError } from "./services/cli-backend"
@@ -60,6 +61,7 @@ import { retry } from "./services/cli-backend/retry"
 import { normalize, type SSEPayload, type SyncPayload, type WirePayload } from "./services/cli-backend/sdk-sse-adapter"
 import { slimInfo, slimPart, slimParts } from "./kilo-provider/slim-metadata"
 import { handleSidebarWorktreeMessage } from "./kilo-provider/sidebar-worktree"
+import { sessionSourceId } from "./diff/sources/session"
 import { parseMessageFiles, type MessageFile } from "./kilo-provider/message-files"
 import { renameSession } from "./kilo-provider/rename-session"
 import { handleFileSearch } from "./kilo-provider/file-search"
@@ -421,6 +423,17 @@ export class KiloProvider implements vscode.WebviewViewProvider, TelemetryProper
   private statsGitOps: GitOps | null = null
   private cachedStats: unknown = null
   private cachedGitRepo = false
+
+  private postSessionDiffs(sessionID: string, diffs: SnapshotFileDiff[], requestID?: string): void {
+    this.postMessage({
+      type: "sessionDiffFilesLoaded",
+      sessionID,
+      files: diffs.flatMap((diff) =>
+        diff.file ? [{ file: diff.file, additions: diff.additions, deletions: diff.deletions }] : [],
+      ),
+      ...(requestID ? { requestID } : {}),
+    })
+  }
 
   private onBeforeMessage: ((msg: Record<string, unknown>) => Promise<Record<string, unknown> | null>) | null = null
 
@@ -974,8 +987,13 @@ export class KiloProvider implements vscode.WebviewViewProvider, TelemetryProper
           post: (msg) => this.postMessage(msg),
           openAgentManager: () => vscode.commands.executeCommand("kilo-code.new.agentManagerOpen"),
           openAdvancedWorktree: () => vscode.commands.executeCommand("kilo-code.new.agentManager.advancedWorktree"),
-          openChanges: (sessionId?: string, turnId?: string) =>
-            vscode.commands.executeCommand("kilo-code.new.showChanges", { sessionId, turnId }),
+          openChanges: (sessionId?: string, turnId?: string, source?: "session" | "workspace") =>
+            vscode.commands.executeCommand("kilo-code.new.showChanges", {
+              sessionId,
+              turnId,
+              directory: sessionId ? this.getWorkspaceDirectory(sessionId) : undefined,
+              initialSourceId: source === "session" && sessionId ? sessionSourceId(sessionId) : undefined,
+            }),
           currentSessionId: this.currentSession?.id,
           createWorktree: async (baseBranch, branchName) => {
             await this.createWorktreeHandler?.(baseBranch, branchName)
@@ -985,7 +1003,7 @@ export class KiloProvider implements vscode.WebviewViewProvider, TelemetryProper
       ) {
         return
       }
-      if (await this.handleModelSelectorExpandedMessage(message)) return
+      if (await this.handleProviderMessage(message)) return
       this.handleWebviewFocusMessage(message)
       this.visibleTaskStreams.handle(message)
       if (await this.handleMemoryMessage(message)) return
@@ -1501,6 +1519,26 @@ export class KiloProvider implements vscode.WebviewViewProvider, TelemetryProper
       return true
     }
     return false
+  }
+
+  private async handleSessionDiffMessage(
+    message: TypedWebviewMessage & { sessionID?: unknown; requestID?: unknown },
+  ): Promise<boolean> {
+    if (message.type !== "requestSessionDiff") return false
+    if (typeof message.sessionID !== "string" || typeof message.requestID !== "string") return true
+    const client = this.client
+    if (!client) return true
+    const { data } = await client.session.diff(
+      { sessionID: message.sessionID, directory: this.getWorkspaceDirectory(message.sessionID) },
+      { throwOnError: true },
+    )
+    this.postSessionDiffs(message.sessionID, data ?? [], message.requestID)
+    return true
+  }
+
+  private async handleProviderMessage(message: TypedWebviewMessage & { sessionID?: unknown; requestID?: unknown }) {
+    if (await this.handleSessionDiffMessage(message)) return true
+    return this.handleModelSelectorExpandedMessage(message)
   }
 
   // legacy-migration start
@@ -4063,6 +4101,11 @@ export class KiloProvider implements vscode.WebviewViewProvider, TelemetryProper
     if (event.type === "session.updated" && typeof event.properties.info.cost === "number") {
       const cost = this.costs.setSessionCost(event.properties.sessionID, event.properties.info.cost)
       this.requestCostAlert(event.properties.sessionID, cost)
+    }
+
+    if (event.type === "session.diff") {
+      this.postSessionDiffs(event.properties.sessionID, event.properties.diff)
+      return
     }
 
     if (event.type === "session.updated") {
