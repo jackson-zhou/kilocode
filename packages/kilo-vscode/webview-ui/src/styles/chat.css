@@ -33,16 +33,113 @@
 [data-component="changed-files-overview"] {
   display: flex;
   flex-direction: column;
-  padding: 0 12px;
+  margin: 0 12px;
+  border: 1px solid var(--vscode-panel-border);
+  border-bottom: 0;
+  border-radius: 6px 6px 0 0;
 
-  [data-slot="header"] { display: flex; width: 100%; }
-  [data-slot="summary"] { width: 100%; min-width: 0; justify-content: flex-start; font-variant-numeric: tabular-nums; }
-  [data-slot="label"] { min-width: 0; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  [data-slot="toggle"] { flex-shrink: 0; }
-  [data-slot="list"] { max-height: 160px; overflow-y: auto; padding-bottom: 4px; }
-  [data-slot="file"], [data-slot="more"] { width: 100%; min-width: 0; justify-content: flex-start; padding-left: 30px; text-align: left; }
-  [data-slot="path"] { min-width: 0; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  [data-slot="stats"] { display: flex; flex-shrink: 0; gap: 4px; font-variant-numeric: tabular-nums; }
-  [data-slot="additions"] { flex-shrink: 0; color: var(--text-diff-add-base); }
-  [data-slot="deletions"] { flex-shrink: 0; color: var(--text-diff-delete-base); }
+  [data-slot="header"] {
+    display: flex;
+    align-items: center;
+    width: 100%;
+    min-height: 36px;
+    padding: 0 4px;
+  }
+  [data-slot="summary"] {
+    min-width: 0;
+    flex: 1;
+    justify-content: flex-start;
+    font-variant-numeric: tabular-nums;
+  }
+  [data-slot="label"] {
+    min-width: 0;
+    flex: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  [data-slot="toggle"] {
+    flex-shrink: 0;
+  }
+  [data-slot="actions"] {
+    display: flex;
+    flex-shrink: 0;
+    align-items: center;
+    gap: 2px;
+  }
+  [data-slot="review"] {
+    margin-left: 2px;
+  }
+  [data-slot="list"] {
+    max-height: 160px;
+    overflow-y: auto;
+    padding: 0 4px 4px;
+  }
+  [data-slot="file-group"] {
+    display: flex;
+    flex-direction: column;
+  }
+  [data-slot="file-row"] {
+    display: flex;
+    align-items: center;
+    min-width: 0;
+  }
+  [data-slot="file"] {
+    min-width: 0;
+    flex: 1;
+    justify-content: flex-start;
+    padding-left: 30px;
+    text-align: left;
+  }
+  [data-slot="more"] {
+    width: 100%;
+    min-width: 0;
+    justify-content: flex-start;
+    padding-left: 30px;
+    text-align: left;
+  }
+  [data-slot="file-actions"] {
+    display: flex;
+    flex-shrink: 0;
+  }
+  [data-slot="hunks"] {
+    display: flex;
+    flex-direction: column;
+    padding-left: 42px;
+  }
+  [data-slot="hunk"] {
+    display: flex;
+    min-height: 30px;
+    align-items: center;
+    gap: 4px;
+    border-left: 1px solid var(--vscode-panel-border);
+    padding-left: 10px;
+  }
+  [data-slot="hunk-label"] {
+    min-width: 0;
+    flex: 1;
+    color: var(--vscode-descriptionForeground);
+    font-variant-numeric: tabular-nums;
+  }
+  [data-slot="path"] {
+    min-width: 0;
+    flex: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  [data-slot="stats"] {
+    display: flex;
+    flex-shrink: 0;
+    gap: 4px;
+    font-variant-numeric: tabular-nums;
+  }
+  [data-slot="additions"] {
+    flex-shrink: 0;
+    color: var(--text-diff-add-base);
+  }
+  [data-slot="deletions"] {
+    flex-shrink: 0;
+    color: var(--text-diff-delete-base);
+  }
 }

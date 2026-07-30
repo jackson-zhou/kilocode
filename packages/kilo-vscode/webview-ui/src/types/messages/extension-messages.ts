@@ -898,15 +898,32 @@ export interface WorktreeStatsLoadedMessage {
 
 export interface SessionDiffFile {
   file: string
+  id: string
+  patch: string
+  undoable: boolean
   additions: number
   deletions: number
+  status?: "added" | "deleted" | "modified"
+  hunks: Array<{
+    id: string
+    label: string
+    additions: number
+    deletions: number
+  }>
 }
 
 export interface SessionDiffFilesLoadedMessage {
   type: "sessionDiffFilesLoaded"
   sessionID: string
   files: SessionDiffFile[]
+  canRedo: boolean
   requestID?: string
+}
+
+export interface SessionReviewErrorMessage {
+  type: "sessionReviewError"
+  sessionID: string
+  message: string
 }
 
 // Set the model for a session (extension → webview, used during multi-version creation)
@@ -1295,6 +1312,7 @@ export type ExtensionMessage =
   | ContinueInWorktreeProgressMessage
   | WorktreeStatsLoadedMessage
   | SessionDiffFilesLoadedMessage
+  | SessionReviewErrorMessage
   | McpStatusLoadedMessage
   | ClearPendingPromptsMessage
   | ExtensionDataReadyMessage

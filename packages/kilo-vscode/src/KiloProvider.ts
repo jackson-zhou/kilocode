@@ -48,6 +48,7 @@ import {
   type SessionRefreshContext,
 } from "./kilo-provider-utils"
 import { GitOps } from "./agent-manager/GitOps"
+import { ChangedFilesReview, type ReviewAction } from "./changed-files-review"
 import { GitStatsPoller, type LocalStats } from "./agent-manager/GitStatsPoller"
 import { diffSummary as localDiffSummary } from "./agent-manager/local-diff"
 import { getWorkspaceRoot } from "./review-utils"
@@ -423,14 +424,15 @@ export class KiloProvider implements vscode.WebviewViewProvider, TelemetryProper
   private statsGitOps: GitOps | null = null
   private cachedStats: unknown = null
   private cachedGitRepo = false
+  private readonly changedFiles: ChangedFilesReview
 
   private postSessionDiffs(sessionID: string, diffs: SnapshotFileDiff[], requestID?: string): void {
+    const state = this.changedFiles.update(sessionID, diffs)
     this.postMessage({
       type: "sessionDiffFilesLoaded",
       sessionID,
-      files: diffs.flatMap((diff) =>
-        diff.file ? [{ file: diff.file, additions: diff.additions, deletions: diff.deletions }] : [],
-      ),
+      files: state.files,
+      canRedo: state.canRedo,
       ...(requestID ? { requestID } : {}),
     })
   }
@@ -456,6 +458,25 @@ export class KiloProvider implements vscode.WebviewViewProvider, TelemetryProper
   ) {
     this.projectDirectory = opts.projectDirectory
     this.slimEditMetadata = opts.slimEditMetadata ?? true
+    this.changedFiles = new ChangedFilesReview(
+      new GitOps({ log: (...args) => console.log("[Kilo New] Changed files review:", ...args) }),
+      (session) => this.getWorkspaceDirectory(session),
+      {
+        get: (session) =>
+          this.extensionContext?.workspaceState.get<Record<string, string[]>>("kilo.sessionReview.accepted")?.[
+            session
+          ] ?? [],
+        set: async (session, keys) => {
+          if (!this.extensionContext) return
+          const state =
+            this.extensionContext.workspaceState.get<Record<string, string[]>>("kilo.sessionReview.accepted") ?? {}
+          await this.extensionContext.workspaceState.update("kilo.sessionReview.accepted", {
+            ...state,
+            [session]: keys,
+          })
+        },
+      },
+    )
     this.unsubscribeSandboxPreference = this.connectionService.sandboxPreference?.onChange(() => {
       if (this.connectionState === "connected") void this.fetchAndSendSandboxDefault()
     })
@@ -1522,8 +1543,27 @@ export class KiloProvider implements vscode.WebviewViewProvider, TelemetryProper
   }
 
   private async handleSessionDiffMessage(
-    message: TypedWebviewMessage & { sessionID?: unknown; requestID?: unknown },
+    message: TypedWebviewMessage & { sessionID?: unknown; requestID?: unknown; action?: unknown },
   ): Promise<boolean> {
+    if (message.type === "sessionReviewAction") {
+      if (typeof message.sessionID !== "string") return true
+      const action = message.action as ReviewAction
+      await this.changedFiles.act(message.sessionID, action).then(
+        (state) =>
+          this.postMessage({
+            type: "sessionDiffFilesLoaded",
+            sessionID: message.sessionID,
+            files: state.files,
+            canRedo: state.canRedo,
+          }),
+        (err) => {
+          const text = getErrorMessage(err) || "Failed to update Agent changes"
+          this.postMessage({ type: "sessionReviewError", sessionID: message.sessionID, message: text })
+          void vscode.window.showErrorMessage(text)
+        },
+      )
+      return true
+    }
     if (message.type !== "requestSessionDiff") return false
     if (typeof message.sessionID !== "string" || typeof message.requestID !== "string") return true
     const client = this.client

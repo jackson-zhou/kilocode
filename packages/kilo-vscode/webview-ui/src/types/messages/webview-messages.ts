@@ -909,6 +909,19 @@ export interface RequestSessionDiff {
   requestID: string
 }
 
+export interface SessionReviewActionRequest {
+  type: "sessionReviewAction"
+  sessionID: string
+  action:
+    | { type: "keep-all" }
+    | { type: "undo-all" }
+    | { type: "keep-file"; file: string }
+    | { type: "undo-file"; file: string }
+    | { type: "keep-hunk"; file: string; hunk: string }
+    | { type: "undo-hunk"; file: string; hunk: string }
+    | { type: "redo" }
+}
+
 // Open diff virtual (permission diff) in the lightweight diff virtual panel
 export interface OpenDiffVirtualRequest {
   type: "openDiffVirtual"
@@ -1387,6 +1400,7 @@ export type WebviewMessage =
   | EnhancePromptRequest
   | OpenChangesRequest
   | RequestSessionDiff
+  | SessionReviewActionRequest
   | OpenDiffVirtualRequest
   | DiffViewerSendCommentsRequest
   | DiffViewerSetDiffStyleRequest

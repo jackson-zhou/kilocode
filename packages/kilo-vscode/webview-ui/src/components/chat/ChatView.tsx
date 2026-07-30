@@ -384,7 +384,13 @@ export const ChatView: Component<ChatViewProps> = (props) => {
               {renderActions(hasMessages())}
             </Show>
             <Show when={!props.readonly && isSidebar()}>
-              <ChangedFilesOverview sessionID={id()} files={session.sessionDiffFiles()} onOpen={openSessionChanges} />
+              <ChangedFilesOverview
+                sessionID={id()}
+                files={session.sessionDiffFiles()}
+                canRedo={session.sessionReviewCanRedo()}
+                onOpen={openSessionChanges}
+                onAction={session.sessionReviewAction}
+              />
             </Show>
             <Show when={!props.readonly}>
               <PromptInput

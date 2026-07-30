@@ -5,8 +5,12 @@ import type { SessionDiffFile, WebviewMessage } from "../../webview-ui/src/types
 const files = (count: number): SessionDiffFile[] =>
   Array.from({ length: count }, (_, index) => ({
     file: `src/file-${index}.ts`,
+    id: `file-${index}`,
+    patch: "",
+    undoable: false,
     additions: index + 1,
     deletions: index % 2,
+    hunks: [],
   }))
 
 describe("changed files overview", () => {

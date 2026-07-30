@@ -7,31 +7,26 @@
 
 ## 拆分
 
-### PR 1：Changed Files MVP
+### 自用实现：Changed Files + 交互式 Review
 
 - 在输入框上方显示会话级 Changed Files。
 - 支持实时更新、折叠/展开文件列表。
 - 点击进入已有的 Session Review。
-- 不包含 Keep、Undo、hunk 操作或 checkpoint。
-
-当前实现提交：`9a70faae73 feat(vscode): show session changed files`。
-
-### PR 2：交互式 Review
-
 - Undo All / Keep All / Review。
 - 文件级 Undo File / Keep File。
 - hunk 级 Undo / Keep，以及 Cmd 快捷键。
-- 用户和 Agent 同时修改同一处时，以 Agent 首次修改前的 baseline 为准，Review 展示 baseline 到当前文件的 diff。
-- Keep 推进 baseline；Undo 恢复 baseline。因此需要 checkpoint / Redo 兜底。
+- Keep 推进待审队列；Undo 反向应用 Agent snapshot patch。
+- Undo 前保存文件 checkpoint；Redo 仅在文件未被再次编辑时恢复，避免覆盖后续用户修改。
+- Keep 状态保存在 VS Code workspace state 中，重载后继续生效。
 
 ## 维护者协作规则
 
-- 已在 #10711 说明 PR1/PR2 边界，并指向 #12645。
-- 留出七个自然日征求意见；若到 2026-08-05 没有反对意见，从最新 `main` 开 PR1 Draft。
-- 默认动作仅为开 Draft PR，不自动合并。
+- 维护者在 #10711 指出现有 `Show Changes` 已覆盖 Git/worktree diff，不接受重复实现。
+- 已进一步说明本方案是 Agent/session snapshot review，不是 Git diff。
+- 当前分支仅作为自用版本继续，不提交上游 PR；若维护者认可 Agent-scoped 语义，再重新拆分上游方案。
 
 ## 本地验证
 
 - 分支：`codex/changed-files-mvp`。
-- 已通过类型检查、lint、目标单测和生产构建。
-- 本地安装包：`packages/kilo-vscode/kilo-code-changed-files-mvp.vsix`（不提交）。
+- 自用扩展版本：`7.4.18-agent-review.0`。
+- 本地 VSIX 不提交。

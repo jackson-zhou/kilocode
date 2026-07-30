@@ -50,6 +50,7 @@ import type {
   MessageLoadMode,
   SessionDiffFile,
   ToolPart,
+  WebviewMessage,
 } from "../types/messages"
 import { removeSessionPermissions, upsertPermission } from "./permission-queue"
 import {
@@ -253,10 +254,12 @@ interface SessionContextValue {
   // Live worktree diff stats (polled from CLI backend)
   worktreeStats: Accessor<{ files: number; additions: number; deletions: number } | undefined>
   sessionDiffFiles: Accessor<SessionDiffFile[]>
+  sessionReviewCanRedo: Accessor<boolean>
 
   // Actions
   revertSession: (messageID: string, partID?: string) => void
   unrevertSession: () => void
+  sessionReviewAction: (action: Extract<WebviewMessage, { type: "sessionReviewAction" }>["action"]) => void
   deleteQueuedMessage: (sessionID: string, messageID: string) => void
   sendMessage: (
     text: string,
@@ -463,11 +466,13 @@ export const SessionProvider: ParentComponent = (props) => {
     { files: number; additions: number; deletions: number } | undefined
   >()
   const [sessionDiffFiles, setSessionDiffFiles] = createSignal<SessionDiffFile[]>([])
+  const [sessionReviewCanRedo, setSessionReviewCanRedo] = createSignal(false)
   let sessionDiffRequest: { sessionID: string; requestID: string } | undefined
 
   createEffect(() => {
     const sessionID = currentSessionID()
     setSessionDiffFiles([])
+    setSessionReviewCanRedo(false)
     if (!sessionID) return
     const requestID = Identifier.ascending("message")
     sessionDiffRequest = { sessionID, requestID }
@@ -1090,6 +1095,7 @@ export const SessionProvider: ParentComponent = (props) => {
     if (message.requestID && message.requestID !== sessionDiffRequest?.requestID) return true
     sessionDiffRequest = undefined
     setSessionDiffFiles(message.files)
+    setSessionReviewCanRedo(message.canRedo)
     return true
   }
 
@@ -2830,6 +2836,12 @@ export const SessionProvider: ParentComponent = (props) => {
     vscode.postMessage({ type: "unrevertSession", sessionID: id })
   }
 
+  function sessionReviewAction(action: Extract<WebviewMessage, { type: "sessionReviewAction" }>["action"]) {
+    const sessionID = currentSessionID()
+    if (!sessionID) return
+    vscode.postMessage({ type: "sessionReviewAction", sessionID, action })
+  }
+
   // Clear local send bookkeeping and request deletion. The message stays visible
   // until messageRemoved confirms deletion; a false response leaves it in place.
   function deleteQueuedMessage(sessionID: string, messageID: string) {
@@ -3022,8 +3034,10 @@ export const SessionProvider: ParentComponent = (props) => {
     summary,
     worktreeStats,
     sessionDiffFiles,
+    sessionReviewCanRedo,
     revertSession,
     unrevertSession,
+    sessionReviewAction,
     deleteQueuedMessage,
     sendMessage,
     sendCommand,

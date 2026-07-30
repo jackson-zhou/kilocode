@@ -487,6 +487,24 @@ export class GitOps {
     return { ok: false, conflicts, message }
   }
 
+  async applyReversePatch(targetPath: string, patch: string): Promise<ApplyPatchResult> {
+    if (!patch.trim()) {
+      return { ok: true, conflicts: [], message: "No changes to undo" }
+    }
+
+    const result = await this.exec(["apply", "--reverse", "--whitespace=nowarn", "-"], targetPath, { stdin: patch })
+    if (result.code === 0) {
+      return { ok: true, conflicts: [], message: "Agent change undone" }
+    }
+
+    const output = [result.stderr, result.stdout].filter(Boolean).join("\n")
+    return {
+      ok: false,
+      conflicts: this.parseApplyConflicts(output),
+      message: output.trim() || "Failed to undo Agent change",
+    }
+  }
+
   private parseApplyConflicts(output: string): ApplyConflict[] {
     const lines = output
       .split(/\r?\n/g)
