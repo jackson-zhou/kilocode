@@ -15,3 +15,9 @@ export function overview(files: SessionDiffFile[]) {
 export function request(post: (msg: WebviewMessage) => void, sessionID: string, requestID: string) {
   post({ type: "requestSessionDiff", sessionID, requestID })
 }
+
+export function shortcut(event: Pick<KeyboardEvent, "key" | "metaKey" | "altKey" | "ctrlKey" | "shiftKey">) {
+  if (!event.metaKey || event.altKey || event.ctrlKey || event.shiftKey) return
+  if (event.key.toLowerCase() === "n") return "undo"
+  if (event.key.toLowerCase() === "y") return "keep"
+}

@@ -950,6 +950,11 @@ export interface DiffViewerRevertFileRequest {
   file: string
 }
 
+export interface DiffViewerSessionReviewRequest {
+  type: "diffViewer.sessionReview"
+  action: { type: "keep-all" } | { type: "undo-all" } | { type: "keep-file"; file: string } | { type: "redo" }
+}
+
 export interface DiffViewerRequestFileRequest {
   type: "diffViewer.requestFile"
   file: string
@@ -1406,6 +1411,7 @@ export type WebviewMessage =
   | DiffViewerSetDiffStyleRequest
   | DiffViewerSetMarkdownRenderRequest
   | DiffViewerRevertFileRequest
+  | DiffViewerSessionReviewRequest
   | DiffViewerRequestFileRequest
   | DiffViewerCloseRequest
   | DiffViewerRequestBranchesRequest

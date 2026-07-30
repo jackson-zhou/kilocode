@@ -8,9 +8,11 @@
  */
 
 import type { Meta, StoryObj } from "storybook-solidjs-vite"
+import { createSignal } from "solid-js"
 import type { AssistantMessage } from "@kilocode/sdk/v2"
 import { StoryProviders, defaultMockData, mockSessionValue } from "./StoryProviders"
 import { ChatView } from "../components/chat/ChatView"
+import { ChangedFilesOverview } from "../components/chat/ChangedFilesOverview"
 import { ErrorDisplay } from "../components/chat/ErrorDisplay"
 import { TaskHeader } from "../components/chat/TaskHeader"
 import { TaskUsage } from "../components/chat/TaskUsage"
@@ -1249,4 +1251,49 @@ export const WelcomeWithSwitcherAndNotification: Story = {
       </ServerContext.Provider>
     </StoryProviders>
   ),
+}
+
+export const ChangedFilesReviewControls: Story = {
+  name: "Changed files — review controls",
+  render: () => {
+    const [last, setLast] = createSignal("")
+    return (
+      <StoryProviders sessionID={SESSION_ID} status="idle" noPadding>
+        <div style={{ width: "420px", padding: "120px 0 0" }}>
+          <ChangedFilesOverview
+            sessionID={SESSION_ID}
+            canRedo={true}
+            files={[
+              {
+                file: "src/InspectObjectPage.tsx",
+                id: "file-a",
+                patch: "patch",
+                undoable: true,
+                additions: 13,
+                deletions: 6,
+                status: "modified",
+                hunks: [
+                  { id: "hunk-a", label: "Lines 12-12", additions: 8, deletions: 2 },
+                  { id: "hunk-b", label: "Lines 48-48", additions: 5, deletions: 4 },
+                ],
+              },
+              {
+                file: "src/types.ts",
+                id: "file-b",
+                patch: "patch",
+                undoable: true,
+                additions: 0,
+                deletions: 1,
+                status: "modified",
+                hunks: [{ id: "hunk-c", label: "Lines 7-7", additions: 0, deletions: 1 }],
+              },
+            ]}
+            onOpen={() => setLast("review")}
+            onAction={(action) => setLast(JSON.stringify(action))}
+          />
+          <output data-testid="last-review-action">{last()}</output>
+        </div>
+      </StoryProviders>
+    )
+  },
 }

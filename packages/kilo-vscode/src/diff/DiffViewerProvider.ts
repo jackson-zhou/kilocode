@@ -6,13 +6,22 @@ import { buildWebviewHtml, getWebviewFontSize } from "../utils"
 import { watchFontSizeConfig } from "../kilo-provider/font-size"
 import type { DiffSourceCatalog } from "./sources/catalog"
 import { turnSourceId } from "./sources/turn"
+import { SESSION_PREFIX } from "./sources/session"
 import type { PanelContext } from "./types"
 import { SourceController } from "./SourceController"
+import type { ReviewAction } from "../changed-files-review"
 
 type CommentHandler = (comments: unknown[], autoSend: boolean) => void
 
 export interface DiffViewerProviderOptions {
   sessionIdProvider?: () => string | undefined
+  sessionReview?: (
+    session: string,
+    action: ReviewAction,
+  ) => Promise<{ files: Array<{ file: string; undoable: boolean }>; canRedo: boolean }>
+  sessionReviewState?: (
+    session: string,
+  ) => Promise<{ files: Array<{ file: string; undoable: boolean }>; canRedo: boolean }>
 }
 
 /**
@@ -31,6 +40,8 @@ export class DiffViewerProvider implements vscode.Disposable {
   private fontConfigDisposable: vscode.Disposable | undefined
   private baseBranchOverride: string | undefined
   private readonly sessionIdProvider: () => string | undefined
+  private readonly sessionReview: DiffViewerProviderOptions["sessionReview"]
+  private readonly sessionReviewState: DiffViewerProviderOptions["sessionReviewState"]
   private readonly output: vscode.OutputChannel
 
   constructor(
@@ -40,6 +51,8 @@ export class DiffViewerProvider implements vscode.Disposable {
     opts: DiffViewerProviderOptions = {},
   ) {
     this.sessionIdProvider = opts.sessionIdProvider ?? (() => undefined)
+    this.sessionReview = opts.sessionReview
+    this.sessionReviewState = opts.sessionReviewState
     this.output = vscode.window.createOutputChannel("Kilo Diff Panel")
   }
 
@@ -162,7 +175,18 @@ export class DiffViewerProvider implements vscode.Disposable {
       if (typeof msg.render === "boolean") void setDiffMarkdownRender(msg.render)
     },
     "diffViewer.revertFile": (msg) => {
-      if (typeof msg.file === "string") void this.controller?.revertFile(msg.file)
+      if (typeof msg.file !== "string") return
+      if (this.controller?.currentId?.startsWith(SESSION_PREFIX)) {
+        void this.review({ type: "undo-file", file: msg.file }, msg.file)
+        return
+      }
+      void this.controller?.revertFile(msg.file)
+    },
+    "diffViewer.sessionReview": (msg) => {
+      if (!this.controller?.currentId?.startsWith(SESSION_PREFIX)) return
+      const action = msg.action as ReviewAction
+      if (!action || typeof action.type !== "string") return
+      void this.review(action)
     },
     "diffViewer.requestFile": (msg) => {
       if (typeof msg.file === "string") void this.controller?.requestFile(msg.file)
@@ -184,6 +208,45 @@ export class DiffViewerProvider implements vscode.Disposable {
       if (typeof msg.filePath !== "string") return
       openWorkspaceRelativeFile(msg.filePath, typeof msg.line === "number" ? msg.line : undefined)
     },
+  }
+
+  private async review(action: ReviewAction, file?: string): Promise<void> {
+    const id = this.controller?.currentId
+    const session = id?.startsWith(SESSION_PREFIX) ? id.slice(SESSION_PREFIX.length) : undefined
+    if (!session || !this.sessionReview) return
+    const result = await this.sessionReview(session, action).then(
+      (state) => ({ ok: true as const, message: "", state }),
+      (err) => ({ ok: false as const, message: err instanceof Error ? err.message : String(err) }),
+    )
+    if (file && this.panel) {
+      void this.panel.webview.postMessage({
+        type: "diffViewer.revertFileResult",
+        file,
+        status: result.ok ? "success" : "error",
+        message: result.message,
+      })
+    }
+    if (!result.ok) {
+      void vscode.window.showErrorMessage(result.message)
+      return
+    }
+    this.sendReviewState(result.state)
+    await this.controller?.refresh()
+  }
+
+  private sendReviewState(state: { files: Array<{ file: string; undoable: boolean }>; canRedo: boolean }): void {
+    void this.panel?.webview.postMessage({
+      type: "diffViewer.reviewFiles",
+      files: state.files.map((file) => ({ file: file.file, undoable: file.undoable })),
+      canRedo: state.canRedo,
+    })
+  }
+
+  private async prepareReview(id: string): Promise<void> {
+    if (!id.startsWith(SESSION_PREFIX) || !this.sessionReviewState) return
+    const session = id.slice(SESSION_PREFIX.length)
+    const state = await this.sessionReviewState(session).catch(() => undefined)
+    if (state) this.sendReviewState(state)
   }
 
   private async sendBranches(): Promise<void> {
@@ -231,6 +294,7 @@ export class DiffViewerProvider implements vscode.Disposable {
       const message = err instanceof Error ? err.message : String(err)
       this.log("Failed to activate source:", message)
     })
+    void this.prepareReview(id)
   }
 
   private getHtml(webview: vscode.Webview): string {

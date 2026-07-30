@@ -1,10 +1,10 @@
 /** @jsxImportSource solid-js */
 
-import { type Component, For, Show, createEffect, createMemo, createSignal } from "solid-js"
+import { type Component, For, Show, createEffect, createMemo, createSignal, onCleanup } from "solid-js"
 import { Button } from "@kilocode/kilo-ui/button"
 import { IconButton } from "@kilocode/kilo-ui/icon-button"
 import type { SessionDiffFile, WebviewMessage } from "../../types/messages"
-import { overview } from "./changed-files-overview"
+import { overview, shortcut } from "./changed-files-overview"
 
 interface Props {
   sessionID?: string
@@ -17,6 +17,7 @@ interface Props {
 export const ChangedFilesOverview: Component<Props> = (props) => {
   const [expanded, setExpanded] = createSignal(false)
   const [selected, setSelected] = createSignal<string>()
+  const [selectedHunk, setSelectedHunk] = createSignal<string>()
   const data = createMemo(() => overview(props.files))
   const canUndoAll = createMemo(() => props.files.length > 0 && props.files.every((file) => file.undoable))
 
@@ -24,7 +25,20 @@ export const ChangedFilesOverview: Component<Props> = (props) => {
     void props.sessionID
     setExpanded(false)
     setSelected(undefined)
+    setSelectedHunk(undefined)
   })
+
+  const handler = (event: KeyboardEvent) => {
+    if (!expanded() || !selected() || !selectedHunk()) return
+    const target = event.target
+    if (target instanceof HTMLInputElement || target instanceof HTMLTextAreaElement) return
+    const action = shortcut(event)
+    if (!action) return
+    event.preventDefault()
+    props.onAction({ type: `${action}-hunk`, file: selected()!, hunk: selectedHunk()! })
+  }
+  window.addEventListener("keydown", handler)
+  onCleanup(() => window.removeEventListener("keydown", handler))
 
   return (
     <Show when={data().files > 0 || props.canRedo}>
@@ -79,7 +93,11 @@ export const ChangedFilesOverview: Component<Props> = (props) => {
                       data-slot="file"
                       variant="ghost"
                       size="small"
-                      onClick={() => setSelected((value) => (value === file.file ? undefined : file.file))}
+                      onClick={() => {
+                        const next = selected() === file.file ? undefined : file.file
+                        setSelected(next)
+                        setSelectedHunk(next ? file.hunks[0]?.id : undefined)
+                      }}
                     >
                       <span data-slot="path">{file.file}</span>
                       <span data-slot="stats">
@@ -113,7 +131,11 @@ export const ChangedFilesOverview: Component<Props> = (props) => {
                     <div data-slot="hunks">
                       <For each={file.hunks}>
                         {(hunk) => (
-                          <div data-slot="hunk">
+                          <div
+                            data-slot="hunk"
+                            data-selected={selectedHunk() === hunk.id}
+                            onClick={() => setSelectedHunk(hunk.id)}
+                          >
                             <span data-slot="hunk-label">{hunk.label}</span>
                             <span data-slot="stats">
                               <Show when={hunk.additions > 0}>

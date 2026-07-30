@@ -1,4 +1,4 @@
-import { createEffect, createSignal, on, onCleanup, Show } from "solid-js"
+import { createEffect, createMemo, createSignal, on, onCleanup, Show } from "solid-js"
 import type { Component } from "solid-js"
 import { DialogProvider } from "@kilocode/kilo-ui/context/dialog"
 import { CodeComponentProvider } from "@kilocode/kilo-ui/context/code"
@@ -54,6 +54,8 @@ const DiffViewerContent: Component = () => {
   const [isAuto, setIsAuto] = createSignal(true)
   const [currentBranch, setCurrentBranch] = createSignal<string | undefined>(undefined)
   const [branchesLoading, setBranchesLoading] = createSignal(false)
+  const [pending, setPending] = createSignal<Map<string, boolean>>()
+  const [canRedo, setCanRedo] = createSignal(false)
 
   const isWorkspaceSource = () => {
     const id = currentSourceId()
@@ -61,6 +63,17 @@ const DiffViewerContent: Component = () => {
     const desc = availableSources().find((d) => d.id === id)
     return desc?.type === "workspace"
   }
+
+  const isSessionSource = () => currentSourceId()?.startsWith("session:") ?? false
+  const visible = createMemo(() => {
+    const files = pending()
+    if (!isSessionSource() || !files) return diffs()
+    return diffs().filter((diff) => files.has(diff.file))
+  })
+  const revertible = createMemo(
+    () => new Set([...(pending()?.entries() ?? [])].filter(([, value]) => value).map(([file]) => file)),
+  )
+  const canUndoAll = () => pending() !== undefined && pending()!.size > 0 && revertible().size === pending()!.size
 
   const noticeText = () => {
     const n = notice()
@@ -161,6 +174,12 @@ const DiffViewerContent: Component = () => {
       setBranchesLoading(false)
       return
     }
+
+    if (msg.type === "diffViewer.reviewFiles") {
+      setPending(new Map(msg.files.map((file) => [file.file, file.undoable])))
+      setCanRedo(msg.canRedo)
+      return
+    }
   })
 
   const selectSource = (id: string) => {
@@ -180,6 +199,8 @@ const DiffViewerContent: Component = () => {
       setReverting(new Set<string>())
       setLoadingFiles(new Set<string>())
       setNotice(undefined)
+      setPending(undefined)
+      setCanRedo(false)
     }),
   )
 
@@ -244,7 +265,7 @@ const DiffViewerContent: Component = () => {
         </div>
       </Show>
       <FullScreenDiffView
-        diffs={diffs()}
+        diffs={visible()}
         loading={loading()}
         loadingFiles={loadingFiles()}
         onRequestDiff={requestDiffFile}
@@ -269,7 +290,26 @@ const DiffViewerContent: Component = () => {
           markReverting(file, true)
           post({ type: "diffViewer.revertFile", file })
         }}
+        onKeepFile={
+          isSessionSource()
+            ? (file) => post({ type: "diffViewer.sessionReview", action: { type: "keep-file", file } })
+            : undefined
+        }
+        onUndoAll={
+          isSessionSource() && canUndoAll()
+            ? () => post({ type: "diffViewer.sessionReview", action: { type: "undo-all" } })
+            : undefined
+        }
+        onKeepAll={
+          isSessionSource() ? () => post({ type: "diffViewer.sessionReview", action: { type: "keep-all" } }) : undefined
+        }
+        onRedo={
+          isSessionSource() && canRedo()
+            ? () => post({ type: "diffViewer.sessionReview", action: { type: "redo" } })
+            : undefined
+        }
         revertingFiles={reverting()}
+        revertibleFiles={isSessionSource() ? revertible() : undefined}
         canRevert={capabilities()?.revert ?? true}
         canComment={capabilities()?.comments ?? true}
         onClose={() => {

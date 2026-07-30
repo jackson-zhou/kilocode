@@ -83,7 +83,12 @@ interface FullScreenDiffViewProps {
   onRequestDiff?: (file: string) => void
   onOpenFile?: (relativePath: string, line?: number) => void
   onRevertFile?: (file: string) => void
+  onKeepFile?: (file: string) => void
+  onUndoAll?: () => void
+  onKeepAll?: () => void
+  onRedo?: () => void
   revertingFiles?: Set<string>
+  revertibleFiles?: Set<string>
   activeTerminalId?: string
   /** Defaults to true. Hides the per-file Revert action when false. */
   canRevert?: boolean
@@ -570,6 +575,21 @@ export const FullScreenDiffView: Component<FullScreenDiffViewProps> = (props) =>
           </span>
         </div>
         <div class="am-review-toolbar-right">
+          <Show when={props.onRedo}>
+            <Button size="small" variant="ghost" onClick={props.onRedo}>
+              Redo
+            </Button>
+          </Show>
+          <Show when={props.onUndoAll}>
+            <Button size="small" variant="ghost" onClick={props.onUndoAll}>
+              Undo All
+            </Button>
+          </Show>
+          <Show when={props.onKeepAll}>
+            <Button size="small" variant="ghost" onClick={props.onKeepAll}>
+              Keep All
+            </Button>
+          </Show>
           <Button size="small" variant="ghost" onClick={handleExpandAll}>
             <Icon name="chevron-grabber-vertical" size="small" />
             {openLabel()}
@@ -600,6 +620,7 @@ export const FullScreenDiffView: Component<FullScreenDiffViewProps> = (props) =>
               comments={comments()}
               onRevertFile={props.canRevert !== false ? props.onRevertFile : undefined}
               revertingFiles={props.revertingFiles}
+              revertibleFiles={props.revertibleFiles}
             />
           </div>
           <ResizeHandle
@@ -708,7 +729,13 @@ export const FullScreenDiffView: Component<FullScreenDiffViewProps> = (props) =>
                                     />
                                   </Tooltip>
                                 </Show>
-                                <Show when={props.onRevertFile && props.canRevert !== false}>
+                                <Show
+                                  when={
+                                    props.onRevertFile &&
+                                    props.canRevert !== false &&
+                                    (!props.revertibleFiles || props.revertibleFiles.has(diff.file))
+                                  }
+                                >
                                   <Tooltip value={t("agentManager.diff.revertFile")} placement="top">
                                     <IconButton
                                       icon="discard"
@@ -723,6 +750,18 @@ export const FullScreenDiffView: Component<FullScreenDiffViewProps> = (props) =>
                                       }}
                                     />
                                   </Tooltip>
+                                </Show>
+                                <Show when={props.onKeepFile}>
+                                  <Button
+                                    size="small"
+                                    variant="ghost"
+                                    onClick={(e: MouseEvent) => {
+                                      e.stopPropagation()
+                                      props.onKeepFile?.(diff.file)
+                                    }}
+                                  >
+                                    Keep
+                                  </Button>
                                 </Show>
                                 <Show when={isMarkdownFile(diff.file) && props.onMarkdownRenderChange}>
                                   <Tooltip

@@ -20,7 +20,7 @@ export function sessionDescriptor(sessionId: string): DiffSourceDescriptor {
     id: sessionSourceId(sessionId),
     type: "session",
     group: "Session",
-    capabilities: { revert: false, comments: true },
+    capabilities: { revert: true, comments: true },
   }
 }
 

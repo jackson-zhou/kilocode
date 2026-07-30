@@ -1,7 +1,7 @@
 import { createHash } from "crypto"
 import * as fs from "fs/promises"
 import * as path from "path"
-import { formatPatch, parsePatch, type StructuredPatch } from "diff"
+import { applyPatch, formatPatch, parsePatch, reversePatch, type StructuredPatch } from "diff"
 import type { SnapshotFileDiff } from "@kilocode/sdk/v2/client"
 import type { GitOps } from "./agent-manager/GitOps"
 
@@ -34,9 +34,16 @@ export type ReviewAction =
 
 type Saved = { file: string; exists: boolean; data?: Buffer; hash: string }
 type Checkpoint = { before: Saved[]; after: Saved[]; accepted: string[] }
+export type StoredCheckpoint = {
+  before: Array<Omit<Saved, "data"> & { data?: string }>
+  after: Array<Omit<Saved, "data"> & { data?: string }>
+  accepted: string[]
+}
 type Store = {
   get: (session: string) => string[]
   set: (session: string, keys: string[]) => Promise<void>
+  history?: (session: string) => StoredCheckpoint[]
+  save?: (session: string, checkpoints: StoredCheckpoint[]) => Promise<void>
 }
 
 const digest = (value: string | Buffer) => createHash("sha256").update(value).digest("hex")
@@ -50,6 +57,25 @@ function stats(lines: string[]) {
     additions: lines.filter((line) => line.startsWith("+")).length,
     deletions: lines.filter((line) => line.startsWith("-")).length,
   }
+}
+
+function decode(items: StoredCheckpoint[]): Checkpoint[] {
+  return items.map((item) => ({
+    ...item,
+    before: item.before.map((saved) => ({
+      ...saved,
+      data: saved.data ? Buffer.from(saved.data, "base64") : undefined,
+    })),
+    after: item.after.map((saved) => ({ ...saved, data: saved.data ? Buffer.from(saved.data, "base64") : undefined })),
+  }))
+}
+
+function encode(items: Checkpoint[]): StoredCheckpoint[] {
+  return items.map((item) => ({
+    ...item,
+    before: item.before.map((saved) => ({ ...saved, data: saved.data?.toString("base64") })),
+    after: item.after.map((saved) => ({ ...saved, data: saved.data?.toString("base64") })),
+  }))
 }
 
 export function review(raw: SnapshotFileDiff[], accepted: Set<string>): ReviewFile[] {
@@ -111,8 +137,6 @@ export class ChangedFilesReview {
   ) {}
 
   update(session: string, diffs: SnapshotFileDiff[]) {
-    const prior = this.raw.get(session)
-    if (prior && digest(JSON.stringify(prior)) !== digest(JSON.stringify(diffs))) this.history.delete(session)
     this.raw.set(session, diffs)
     return this.state(session)
   }
@@ -120,7 +144,7 @@ export class ChangedFilesReview {
   state(session: string) {
     return {
       files: review(this.raw.get(session) ?? [], this.keys(session)),
-      canRedo: (this.history.get(session)?.length ?? 0) > 0,
+      canRedo: this.checkpoints(session).length > 0,
     }
   }
 
@@ -169,22 +193,35 @@ export class ChangedFilesReview {
     return keys
   }
 
+  private checkpoints(session: string) {
+    const hit = this.history.get(session)
+    if (hit) return hit
+    const history = decode(this.store?.history?.(session) ?? [])
+    this.history.set(session, history)
+    return history
+  }
+
+  private async persist(session: string) {
+    await this.store?.save?.(session, encode(this.checkpoints(session)))
+  }
+
   private async undo(session: string, targets: Array<{ file: ReviewFile; patch: string; ids: string[] }>) {
     const dir = this.directory(session)
     const files = [...new Set(targets.map((target) => target.file.file))]
     const before = await this.capture(dir, files)
     const result = await this.git.applyReversePatch(dir, targets.map((target) => target.patch).join("\n"))
-    if (!result.ok) throw new Error(result.message)
+    if (!result.ok) await this.fallback(dir, targets)
     const after = await this.capture(dir, files)
     const accepted = targets.flatMap((target) => target.ids)
-    const history = this.history.get(session) ?? []
+    const history = this.checkpoints(session)
     history.push({ before, after, accepted })
     this.history.set(session, history.slice(-20))
+    await this.persist(session)
   }
 
   private async redo(session: string) {
-    const history = this.history.get(session)
-    const checkpoint = history?.at(-1)
+    const history = this.checkpoints(session)
+    const checkpoint = history.at(-1)
     if (!checkpoint) throw new Error("No Agent change is available to redo")
     const dir = this.directory(session)
     const current = await this.capture(
@@ -198,8 +235,65 @@ export class ChangedFilesReview {
     const keys = this.keys(session)
     for (const id of checkpoint.accepted) keys.delete(id)
     await this.store?.set(session, [...keys])
-    history!.pop()
+    history.pop()
+    await this.persist(session)
     return this.state(session)
+  }
+
+  private async fallback(
+    dir: string,
+    targets: Array<{ file: ReviewFile; patch: string; ids: string[] }>,
+  ): Promise<void> {
+    for (const target of targets) {
+      const parsed = parsePatch(target.patch)[0]
+      if (!parsed) throw new Error(`Unable to restore ${target.file.file}: invalid session patch`)
+      const file = this.resolve(dir, target.file.file)
+      const current = await fs.readFile(file, "utf8").catch(() => "")
+      const restored = applyPatch(current, reversePatch(parsed), { fuzzFactor: 3 })
+      if (restored !== false) {
+        if (parsed.oldFileName === "/dev/null") await fs.rm(file, { force: true })
+        else {
+          await fs.mkdir(path.dirname(file), { recursive: true })
+          await fs.writeFile(file, restored)
+        }
+        continue
+      }
+      await this.restoreHunks(file, current, parsed)
+    }
+  }
+
+  private async restoreHunks(target: string, current: string, parsed: StructuredPatch) {
+    if (parsed.oldFileName === "/dev/null") {
+      await fs.rm(target, { force: true })
+      return
+    }
+    const eol = current.includes("\r\n") ? "\r\n" : "\n"
+    const trailing = current.endsWith("\n")
+    const lines = current.replace(/\r\n/g, "\n").split("\n")
+    if (trailing) lines.pop()
+    for (const hunk of [...parsed.hunks].reverse()) {
+      const before = hunk.lines.filter((line) => line[0] !== "+").map((line) => line.slice(1))
+      const after = hunk.lines.filter((line) => line[0] !== "-").map((line) => line.slice(1))
+      const expected = Math.max(0, hunk.newStart - 1)
+      const start = this.closest(lines, after, expected)
+      lines.splice(start, after.length, ...before)
+    }
+    await fs.mkdir(path.dirname(target), { recursive: true })
+    await fs.writeFile(target, lines.join(eol) + (trailing ? eol : ""))
+  }
+
+  private closest(lines: string[], expected: string[], offset: number) {
+    const min = Math.max(0, offset - 100)
+    const max = Math.min(lines.length, offset + 100)
+    const candidates = Array.from({ length: max - min + 1 }, (_, index) => min + index)
+    return candidates.reduce(
+      (best, start) => {
+        const matches = expected.reduce((sum, line, index) => sum + (lines[start + index] === line ? 1 : 0), 0)
+        const score = matches * 1000 - Math.abs(start - offset)
+        return score > best.score ? { start, score } : best
+      },
+      { start: Math.min(offset, lines.length), score: Number.NEGATIVE_INFINITY },
+    ).start
   }
 
   private async capture(dir: string, files: string[]) {

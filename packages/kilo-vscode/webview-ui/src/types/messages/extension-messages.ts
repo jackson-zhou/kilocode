@@ -984,6 +984,12 @@ export interface DiffViewerRevertFileResultMessage {
   message: string
 }
 
+export interface DiffViewerReviewFilesMessage {
+  type: "diffViewer.reviewFiles"
+  files: Array<{ file: string; undoable: boolean }>
+  canRedo: boolean
+}
+
 export interface DiffViewerDiffFileMessage {
   type: "diffViewer.diffFile"
   file: string
@@ -1288,6 +1294,7 @@ export type ExtensionMessage =
   | DiffViewerDiffsMessage
   | DiffViewerLoadingMessage
   | DiffViewerRevertFileResultMessage
+  | DiffViewerReviewFilesMessage
   | DiffViewerDiffFileMessage
   | DiffViewerMarkdownRenderMessage
   | SetAvailableSourcesMessage

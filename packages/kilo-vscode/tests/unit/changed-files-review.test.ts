@@ -2,7 +2,7 @@ import { afterAll, describe, expect, it } from "bun:test"
 import * as fs from "fs/promises"
 import * as os from "os"
 import * as path from "path"
-import { ChangedFilesReview, review } from "../../src/changed-files-review"
+import { ChangedFilesReview, review, type StoredCheckpoint } from "../../src/changed-files-review"
 import { GitOps } from "../../src/agent-manager/GitOps"
 
 const root = await fs.mkdtemp(path.join(os.tmpdir(), "kilo-review-"))
@@ -80,5 +80,51 @@ describe("changed files review", () => {
       hunk: state.files[0]!.hunks[0]!.id,
     })
     expect(await fs.readFile(path.join(root, "b.txt"), "utf8")).toBe("one\n2\n3\n4\n5\n6\n7\nEIGHT\n")
+  })
+
+  it("restores the session baseline when the user edits the Agent line", async () => {
+    await fs.writeFile(path.join(root, "overlap.txt"), "one\ntwo\nthree\n")
+    await git(["add", "overlap.txt"])
+    await git(["commit", "-m", "overlap base"])
+    await fs.writeFile(path.join(root, "overlap.txt"), "one\nTWO\nthree\n")
+    const patch = await git(["diff", "--", "overlap.txt"])
+    await fs.writeFile(path.join(root, "overlap.txt"), "one\nUSER\nthree\nuser tail\n")
+
+    const controller = new ChangedFilesReview(new GitOps({ log: () => {} }), () => root)
+    controller.update("overlap", [{ file: "overlap.txt", patch, additions: 1, deletions: 1, status: "modified" }])
+    await controller.act("overlap", { type: "undo-file", file: "overlap.txt" })
+
+    expect(await fs.readFile(path.join(root, "overlap.txt"), "utf8")).toBe("one\ntwo\nthree\nuser tail\n")
+    await controller.act("overlap", { type: "redo" })
+    expect(await fs.readFile(path.join(root, "overlap.txt"), "utf8")).toBe("one\nUSER\nthree\nuser tail\n")
+  })
+
+  it("persists redo checkpoints across controller recreation", async () => {
+    await fs.writeFile(path.join(root, "persist.txt"), "base\n")
+    await git(["add", "persist.txt"])
+    await git(["commit", "-m", "persist base"])
+    await fs.writeFile(path.join(root, "persist.txt"), "agent\n")
+    const patch = await git(["diff", "--", "persist.txt"])
+    const accepted: Record<string, string[]> = {}
+    const history: Record<string, StoredCheckpoint[]> = {}
+    const store = {
+      get: (session: string) => accepted[session] ?? [],
+      set: async (session: string, keys: string[]) => {
+        accepted[session] = keys
+      },
+      history: (session: string) => history[session] ?? [],
+      save: async (session: string, checkpoints: StoredCheckpoint[]) => {
+        history[session] = checkpoints
+      },
+    }
+    const first = new ChangedFilesReview(new GitOps({ log: () => {} }), () => root, store)
+    first.update("persist", [{ file: "persist.txt", patch, additions: 1, deletions: 1, status: "modified" }])
+    await first.act("persist", { type: "undo-file", file: "persist.txt" })
+
+    const restored = new ChangedFilesReview(new GitOps({ log: () => {} }), () => root, store)
+    restored.update("persist", [{ file: "persist.txt", patch, additions: 1, deletions: 1, status: "modified" }])
+    expect(restored.state("persist").canRedo).toBe(true)
+    await restored.act("persist", { type: "redo" })
+    expect(await fs.readFile(path.join(root, "persist.txt"), "utf8")).toBe("agent\n")
   })
 })

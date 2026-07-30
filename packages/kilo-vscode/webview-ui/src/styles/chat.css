@@ -115,6 +115,10 @@
     border-left: 1px solid var(--vscode-panel-border);
     padding-left: 10px;
   }
+  [data-slot="hunk"][data-selected="true"] {
+    background: var(--vscode-list-inactiveSelectionBackground);
+    border-left-color: var(--vscode-focusBorder);
+  }
   [data-slot="hunk-label"] {
     min-width: 0;
     flex: 1;

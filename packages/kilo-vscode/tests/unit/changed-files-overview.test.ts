@@ -1,5 +1,10 @@
 import { describe, expect, it } from "bun:test"
-import { INLINE_FILE_LIMIT, overview, request } from "../../webview-ui/src/components/chat/changed-files-overview"
+import {
+  INLINE_FILE_LIMIT,
+  overview,
+  request,
+  shortcut,
+} from "../../webview-ui/src/components/chat/changed-files-overview"
 import type { SessionDiffFile, WebviewMessage } from "../../webview-ui/src/types/messages"
 
 const files = (count: number): SessionDiffFile[] =>
@@ -31,5 +36,11 @@ describe("changed files overview", () => {
     request((message) => posted.push(message), "session-a", "request-a")
 
     expect(posted).toEqual([{ type: "requestSessionDiff", sessionID: "session-a", requestID: "request-a" }])
+  })
+
+  it("maps command shortcuts only without competing modifiers", () => {
+    expect(shortcut({ key: "n", metaKey: true, altKey: false, ctrlKey: false, shiftKey: false })).toBe("undo")
+    expect(shortcut({ key: "Y", metaKey: true, altKey: false, ctrlKey: false, shiftKey: false })).toBe("keep")
+    expect(shortcut({ key: "n", metaKey: false, altKey: false, ctrlKey: false, shiftKey: false })).toBeUndefined()
   })
 })

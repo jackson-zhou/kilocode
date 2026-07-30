@@ -256,6 +256,8 @@ export function activate(context: vscode.ExtensionContext) {
   context.subscriptions.push(diffSourceCatalog)
   const diffViewerProvider = new DiffViewerProvider(context.extensionUri, connectionService, diffSourceCatalog, {
     sessionIdProvider: () => provider.getCurrentSessionId(),
+    sessionReview: (session, action) => provider.applySessionReviewAction(session, action),
+    sessionReviewState: (session) => provider.getSessionReviewState(session),
   })
   diffViewerProvider.setCommentHandler((comments, autoSend) => {
     void provider.appendReviewComments(comments, autoSend)

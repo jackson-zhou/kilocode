@@ -48,7 +48,7 @@ import {
   type SessionRefreshContext,
 } from "./kilo-provider-utils"
 import { GitOps } from "./agent-manager/GitOps"
-import { ChangedFilesReview, type ReviewAction } from "./changed-files-review"
+import { ChangedFilesReview, type ReviewAction, type StoredCheckpoint } from "./changed-files-review"
 import { GitStatsPoller, type LocalStats } from "./agent-manager/GitStatsPoller"
 import { diffSummary as localDiffSummary } from "./agent-manager/local-diff"
 import { getWorkspaceRoot } from "./review-utils"
@@ -426,6 +426,22 @@ export class KiloProvider implements vscode.WebviewViewProvider, TelemetryProper
   private cachedGitRepo = false
   private readonly changedFiles: ChangedFilesReview
 
+  async applySessionReviewAction(sessionID: string, action: ReviewAction) {
+    await this.getSessionReviewState(sessionID)
+    await this.changedFiles.act(sessionID, action)
+    const state = await this.getSessionReviewState(sessionID)
+    this.postMessage({ type: "sessionDiffFilesLoaded", sessionID, files: state.files, canRedo: state.canRedo })
+    return state
+  }
+
+  async getSessionReviewState(sessionID: string) {
+    const client = this.client
+    if (!client) throw new Error("Kilo is not connected")
+    const directory = this.getWorkspaceDirectory(sessionID)
+    const { data } = await client.session.diff({ sessionID, directory }, { throwOnError: true })
+    return this.changedFiles.update(sessionID, data ?? [])
+  }
+
   private postSessionDiffs(sessionID: string, diffs: SnapshotFileDiff[], requestID?: string): void {
     const state = this.changedFiles.update(sessionID, diffs)
     this.postMessage({
@@ -473,6 +489,21 @@ export class KiloProvider implements vscode.WebviewViewProvider, TelemetryProper
           await this.extensionContext.workspaceState.update("kilo.sessionReview.accepted", {
             ...state,
             [session]: keys,
+          })
+        },
+        history: (session) =>
+          this.extensionContext?.workspaceState.get<Record<string, StoredCheckpoint[]>>("kilo.sessionReview.history")?.[
+            session
+          ] ?? [],
+        save: async (session, checkpoints) => {
+          if (!this.extensionContext) return
+          const state =
+            this.extensionContext.workspaceState.get<Record<string, StoredCheckpoint[]>>(
+              "kilo.sessionReview.history",
+            ) ?? {}
+          await this.extensionContext.workspaceState.update("kilo.sessionReview.history", {
+            ...state,
+            [session]: checkpoints,
           })
         },
       },
@@ -1548,7 +1579,7 @@ export class KiloProvider implements vscode.WebviewViewProvider, TelemetryProper
     if (message.type === "sessionReviewAction") {
       if (typeof message.sessionID !== "string") return true
       const action = message.action as ReviewAction
-      await this.changedFiles.act(message.sessionID, action).then(
+      await this.applySessionReviewAction(message.sessionID, action).then(
         (state) =>
           this.postMessage({
             type: "sessionDiffFilesLoaded",
